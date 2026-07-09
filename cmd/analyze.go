@@ -5,6 +5,7 @@ import (
 
 	gitmanager "repojet/internal/git"
 	"repojet/internal/repository"
+	"repojet/internal/scanner"
 	"repojet/internal/workspace"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,7 @@ var analyzeCmd = &cobra.Command{
 		// Step 4: Guarantee workspace cleanup.
 		defer workspace.Remove(workspacePath)
 
-		// Step 5: Clone repository into the workspace.
+		// Step 5: Clone repository.
 		fmt.Println("Cloning repository...")
 
 		if err := gitmanager.Clone(repositoryURL, workspacePath); err != nil {
@@ -45,7 +46,24 @@ var analyzeCmd = &cobra.Command{
 		}
 
 		fmt.Println("Repository cloned successfully.")
-		fmt.Println("Workspace:", workspacePath)
+
+		// Step 6: Scan repository.
+		fmt.Println("Scanning repository...")
+
+		facts, err := scanner.Scan(workspacePath)
+		if err != nil {
+			return fmt.Errorf("failed to scan repository: %w", err)
+		}
+
+		// Step 7: Print scan result.
+		if facts.PackageJSON != "" {
+			fmt.Println("package.json: found")
+			fmt.Println("Path:", facts.PackageJSON)
+		} else {
+			fmt.Println("package.json: not found")
+		}
+
+		fmt.Println("Repository scan completed.")
 
 		return nil
 	},
