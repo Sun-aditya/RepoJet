@@ -25,10 +25,14 @@ func Clone(repositoryURL string, destination string) error {
 		destination,
 	)
 
-	err := cmd.Run()
+	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		return fmt.Errorf("failed to clone repository: %w", err)
+		return fmt.Errorf(
+			"failed to clone repository: %w: %s",
+			err,
+			string(output),
+		)
 	}
 
 	return nil
