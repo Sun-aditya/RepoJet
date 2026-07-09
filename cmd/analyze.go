@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	gitmanager "repojet/internal/git"
 	"repojet/internal/repository"
 	"repojet/internal/workspace"
 
@@ -17,23 +18,34 @@ var analyzeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repositoryURL := args[0]
 
-		err := repository.ValidateURL(repositoryURL)
-		if err != nil {
+		// Step 1: Validate repository URL.
+		if err := repository.ValidateURL(repositoryURL); err != nil {
 			return err
 		}
 
+		// Step 2: Verify Git is installed.
+		if err := gitmanager.CheckInstalled(); err != nil {
+			return err
+		}
+
+		// Step 3: Create temporary workspace.
 		workspacePath, err := workspace.Create()
 		if err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
 		}
 
+		// Step 4: Guarantee workspace cleanup.
 		defer workspace.Remove(workspacePath)
 
-		fmt.Println("Repository URL is valid:")
-		fmt.Println(repositoryURL)
+		// Step 5: Clone repository into the workspace.
+		fmt.Println("Cloning repository...")
 
-		fmt.Println("Temporary workspace created:")
-		fmt.Println(workspacePath)
+		if err := gitmanager.Clone(repositoryURL, workspacePath); err != nil {
+			return err
+		}
+
+		fmt.Println("Repository cloned successfully.")
+		fmt.Println("Workspace:", workspacePath)
 
 		return nil
 	},
