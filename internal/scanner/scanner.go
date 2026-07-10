@@ -58,7 +58,7 @@ func Scan(rootPath string) (*RepositoryFacts, error) {
 		{"Dockerfile", &facts.Dockerfile},
 
 		{".env.example", &facts.EnvExample},
-		{"README.md", &facts.Readme},
+		
 
 		{"prisma/schema.prisma", &facts.PrismaSchema},
 	}
@@ -84,6 +84,22 @@ func Scan(rootPath string) (*RepositoryFacts, error) {
 	}
 
 	facts.DockerCompose = dockerComposePath
+
+	readmePath, err := findFirstFile(
+		rootPath,
+		"README.md",
+		"README",
+		"README.txt",
+		"README.markdown",
+		"Readme.md",
+		"readme.md",
+	)
+
+if err != nil {
+	return nil, err
+}
+
+facts.Readme = readmePath
 
 	return facts, nil
 }

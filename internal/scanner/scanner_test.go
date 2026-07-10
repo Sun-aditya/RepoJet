@@ -178,3 +178,32 @@ func TestScanFindsKnownRepositoryFiles(t *testing.T) {
 		}
 	}
 }
+
+
+func TestScanFindsReadmeVariant(t *testing.T) {
+	rootPath := t.TempDir()
+
+	readmePath := filepath.Join(rootPath, "readme.md")
+
+	if err := os.WriteFile(
+		readmePath,
+		[]byte("# Test Repository"),
+		0644,
+	); err != nil {
+		t.Fatalf("failed to create readme file: %v", err)
+	}
+
+	facts, err := Scan(rootPath)
+
+	if err != nil {
+		t.Fatalf("Scan() returned an error: %v", err)
+	}
+
+	if facts.Readme != readmePath {
+		t.Errorf(
+			"Readme = %q, want %q",
+			facts.Readme,
+			readmePath,
+		)
+	}
+}

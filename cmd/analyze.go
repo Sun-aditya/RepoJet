@@ -56,12 +56,7 @@ var analyzeCmd = &cobra.Command{
 		}
 
 		// Step 7: Print scan result.
-		if facts.PackageJSON != "" {
-			fmt.Println("package.json: found")
-			fmt.Println("Path:", facts.PackageJSON)
-		} else {
-			fmt.Println("package.json: not found")
-		}
+		printScanResult(facts)
 
 		fmt.Println("Repository scan completed.")
 
