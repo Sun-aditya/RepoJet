@@ -114,3 +114,87 @@ func TestDetectRejectsInvalidPackageJSON(t *testing.T) {
 		t.Fatal("Detect() expected an error, got nil")
 	}
 }
+
+func TestParsePackageManager(t *testing.T) {
+	tests := []struct {
+		name            string
+		value           string
+		expectedName    string
+		expectedVersion string
+		wantError       bool
+	}{
+		{
+			name:            "pnpm with version",
+			value:           "pnpm@10.12.1",
+			expectedName:    "pnpm",
+			expectedVersion: "10.12.1",
+			wantError:       false,
+		},
+		{
+			name:            "npm without version",
+			value:           "npm",
+			expectedName:    "npm",
+			expectedVersion: "",
+			wantError:       false,
+		},
+		{
+			name:            "yarn with whitespace",
+			value:           "  yarn@4.9.2  ",
+			expectedName:    "yarn",
+			expectedVersion: "4.9.2",
+			wantError:       false,
+		},
+		{
+			name:      "empty manager name",
+			value:     "@10.0.0",
+			wantError: true,
+		},
+		{
+			name:      "empty version",
+			value:     "pnpm@",
+			wantError: true,
+		},
+		{
+			name:      "unsupported manager",
+			value:     "bun@1.2.0",
+			wantError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			name, version, err := parsePackageManager(test.value)
+
+			gotError := err != nil
+
+			if gotError != test.wantError {
+				t.Fatalf(
+					"parsePackageManager(%q) error = %v, wantError = %v",
+					test.value,
+					err,
+					test.wantError,
+				)
+			}
+
+			if test.wantError {
+				return
+			}
+
+			if name != test.expectedName {
+				t.Errorf(
+					"name = %q, want %q",
+					name,
+					test.expectedName,
+				)
+			}
+
+			if version != test.expectedVersion {
+				t.Errorf(
+					"version = %q, want %q",
+					version,
+					test.expectedVersion,
+				)
+			}
+		})
+	}
+}

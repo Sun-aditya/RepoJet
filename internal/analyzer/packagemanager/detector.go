@@ -37,23 +37,57 @@ func Detect(packageJSONPath string) (*Result, error) {
 		return nil, nil
 	}
 
-	name, version := parsePackageManager(manifest.PackageManager)
+	name, version, err := parsePackageManager(manifest.PackageManager)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+		"invalid packageManager field: %w",
+		err,
+		)
+	}
 
 	return &Result{
-		Name:    name,
-		Version: version,
-		Source:  "package.json",
+	Name:    name,
+	Version: version,
+	Source:  "package.json",
 	}, nil
 }
 
-func parsePackageManager(value string) (string, string) {
+func parsePackageManager(value string) (string, string, error) {
+	value = strings.TrimSpace(value)
+
+	if value == "" {
+		return "", "", fmt.Errorf("package manager value is empty")
+	}
+
 	parts := strings.SplitN(value, "@", 2)
 
 	name := parts[0]
 
-	if len(parts) == 1 {
-		return name, ""
+	if name == "" {
+		return "", "", fmt.Errorf("package manager name is empty")
 	}
 
-	return name, parts[1]
+	switch name {
+	case "npm", "pnpm", "yarn":
+	default:
+		return "", "", fmt.Errorf(
+			"unsupported package manager %q",
+			name,
+		)
+	}
+
+	if len(parts) == 1 {
+		return name, "", nil
+	}
+
+	version := parts[1]
+
+	if version == "" {
+		return "", "", fmt.Errorf(
+			"package manager version is empty",
+		)
+	}
+
+	return name, version, nil
 }
