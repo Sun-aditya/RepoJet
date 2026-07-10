@@ -7,8 +7,24 @@ import (
 )
 
 type RepositoryFacts struct {
-	RootPath    string
+	RootPath string
+
 	PackageJSON string
+
+	PackageLock string
+	PnpmLock    string
+	YarnLock    string
+
+	Nvmrc       string
+	NodeVersion string
+
+	Dockerfile    string
+	DockerCompose string
+
+	EnvExample string
+	Readme     string
+
+	PrismaSchema string
 }
 
 func Scan(rootPath string) (*RepositoryFacts, error) {
@@ -26,13 +42,48 @@ func Scan(rootPath string) (*RepositoryFacts, error) {
 		RootPath: rootPath,
 	}
 
-	packageJSONPath, err := findFile(rootPath, "package.json")
+	files := []struct {
+		relativePath string
+		destination  *string
+	}{
+		{"package.json", &facts.PackageJSON},
+
+		{"package-lock.json", &facts.PackageLock},
+		{"pnpm-lock.yaml", &facts.PnpmLock},
+		{"yarn.lock", &facts.YarnLock},
+
+		{".nvmrc", &facts.Nvmrc},
+		{".node-version", &facts.NodeVersion},
+
+		{"Dockerfile", &facts.Dockerfile},
+
+		{".env.example", &facts.EnvExample},
+		{"README.md", &facts.Readme},
+
+		{"prisma/schema.prisma", &facts.PrismaSchema},
+	}
+
+	for _, file := range files {
+		path, err := findFile(rootPath, file.relativePath)
+
+		if err != nil {
+			return nil, err
+		}
+
+		*file.destination = path
+	}
+
+	dockerComposePath, err := findFirstFile(
+		rootPath,
+		"docker-compose.yml",
+		"docker-compose.yaml",
+	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	facts.PackageJSON = packageJSONPath
+	facts.DockerCompose = dockerComposePath
 
 	return facts, nil
 }
@@ -59,4 +110,20 @@ func findFile(rootPath string, relativePath string) (string, error) {
 	}
 
 	return fullPath, nil
+}
+
+func findFirstFile(rootPath string, relativePaths ...string) (string, error) {
+	for _, relativePath := range relativePaths {
+		path, err := findFile(rootPath, relativePath)
+
+		if err != nil {
+			return "", err
+		}
+
+		if path != "" {
+			return path, nil
+		}
+	}
+
+	return "", nil
 }
