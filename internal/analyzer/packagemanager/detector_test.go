@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"repojet/internal/scanner"
 )
 
 func TestDetectPackageManagerFromPackageJSON(t *testing.T) {
@@ -24,7 +26,11 @@ func TestDetectPackageManagerFromPackageJSON(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	result, err := Detect(packageJSONPath)
+	facts := &scanner.RepositoryFacts{
+		PackageJSON: packageJSONPath,
+	}
+
+	result, err := Detect(facts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -72,7 +78,11 @@ func TestDetectHandlesMissingPackageManagerField(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	result, err := Detect(packageJSONPath)
+	facts := &scanner.RepositoryFacts{
+		PackageJSON: packageJSONPath,
+	}
+
+	result, err := Detect(facts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -84,7 +94,9 @@ func TestDetectHandlesMissingPackageManagerField(t *testing.T) {
 }
 
 func TestDetectHandlesMissingPackageJSONPath(t *testing.T) {
-	result, err := Detect("")
+	facts := &scanner.RepositoryFacts{}
+
+	result, err := Detect(facts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -108,7 +120,11 @@ func TestDetectRejectsInvalidPackageJSON(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	_, err := Detect(packageJSONPath)
+	facts := &scanner.RepositoryFacts{
+		PackageJSON: packageJSONPath,
+	}
+
+	_, err := Detect(facts)
 
 	if err == nil {
 		t.Fatal("Detect() expected an error, got nil")
@@ -196,5 +212,13 @@ func TestParsePackageManager(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestDetectRejectsNilRepositoryFacts(t *testing.T) {
+	_, err := Detect(nil)
+
+	if err == nil {
+		t.Fatal("Detect() expected an error, got nil")
 	}
 }

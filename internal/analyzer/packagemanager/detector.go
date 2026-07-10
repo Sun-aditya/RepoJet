@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"repojet/internal/scanner"
 )
 
 type Result struct {
@@ -17,12 +19,16 @@ type packageJSON struct {
 	PackageManager string `json:"packageManager"`
 }
 
-func Detect(packageJSONPath string) (*Result, error) {
-	if packageJSONPath == "" {
+func Detect(facts *scanner.RepositoryFacts) (*Result, error) {
+	if facts == nil {
+		return nil, fmt.Errorf("repository facts cannot be nil")
+	}
+
+	if facts.PackageJSON == "" {
 		return nil, nil
 	}
 
-	content, err := os.ReadFile(packageJSONPath)
+	content, err := os.ReadFile(facts.PackageJSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read package.json: %w", err)
 	}
@@ -41,18 +47,17 @@ func Detect(packageJSONPath string) (*Result, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf(
-		"invalid packageManager field: %w",
-		err,
+			"invalid packageManager field: %w",
+			err,
 		)
 	}
 
 	return &Result{
-	Name:    name,
-	Version: version,
-	Source:  "package.json",
+		Name:    name,
+		Version: version,
+		Source:  "package.json",
 	}, nil
 }
-
 func parsePackageManager(value string) (string, string, error) {
 	value = strings.TrimSpace(value)
 
