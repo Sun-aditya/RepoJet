@@ -69,6 +69,39 @@ var analyzeCmd = &cobra.Command{
 	},
 }
 
+func printScanResult(facts *scanner.RepositoryFacts) {
+	fmt.Println()
+	fmt.Println("Detected Files")
+	fmt.Println("------------------------------")
+
+	printFileStatus("package.json", facts.PackageJSON)
+	printFileStatus("package-lock.json", facts.PackageLock)
+	printFileStatus("pnpm-lock.yaml", facts.PnpmLock)
+	printFileStatus("yarn.lock", facts.YarnLock)
+
+	printFileStatus(".nvmrc", facts.Nvmrc)
+	printFileStatus(".node-version", facts.NodeVersion)
+
+	printFileStatus("Dockerfile", facts.Dockerfile)
+	printFileStatus("docker-compose", facts.DockerCompose)
+
+	printFileStatus(".env.example", facts.EnvExample)
+	printFileStatus("README.md", facts.Readme)
+
+	printFileStatus("prisma/schema.prisma", facts.PrismaSchema)
+
+	fmt.Println()
+}
+
+func printFileStatus(name string, path string) {
+	if path != "" {
+		fmt.Printf("%-24s found\n", name)
+		return
+	}
+
+	fmt.Printf("%-24s not found\n", name)
+}
+
 func init() {
 	rootCmd.AddCommand(analyzeCmd)
 }
