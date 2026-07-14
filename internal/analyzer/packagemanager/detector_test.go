@@ -222,3 +222,48 @@ func TestDetectRejectsNilRepositoryFacts(t *testing.T) {
 		t.Fatal("Detect() expected an error, got nil")
 	}
 }
+
+
+func TestCollectLockfileEvidence(t *testing.T) {
+	tests := []struct {
+		name          string
+		facts         *scanner.RepositoryFacts
+		expectedCount int
+	}{
+		{
+			name:          "no lockfiles",
+			facts:         &scanner.RepositoryFacts{},
+			expectedCount: 0,
+		},
+		{
+			name: "pnpm lockfile",
+			facts: &scanner.RepositoryFacts{
+				PnpmLock: "/repo/pnpm-lock.yaml",
+			},
+			expectedCount: 1,
+		},
+		{
+			name: "multiple lockfiles",
+			facts: &scanner.RepositoryFacts{
+				PnpmLock:    "/repo/pnpm-lock.yaml",
+				YarnLock:    "/repo/yarn.lock",
+				PackageLock: "/repo/package-lock.json",
+			},
+			expectedCount: 3,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			evidence := collectLockfileEvidence(test.facts)
+
+			if len(evidence) != test.expectedCount {
+				t.Errorf(
+					"len(evidence) = %d, want %d",
+					len(evidence),
+					test.expectedCount,
+				)
+			}
+		})
+	}
+}

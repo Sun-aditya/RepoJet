@@ -96,3 +96,37 @@ func parsePackageManager(value string) (string, string, error) {
 
 	return name, version, nil
 }
+
+type lockfileEvidence struct {
+	Name   string
+	Source string
+}
+
+func collectLockfileEvidence(
+	facts *scanner.RepositoryFacts,
+) []lockfileEvidence {
+	var evidence []lockfileEvidence
+
+	if facts.PnpmLock != "" {
+		evidence = append(evidence, lockfileEvidence{
+			Name:   "pnpm",
+			Source: "pnpm-lock.yaml",
+		})
+	}
+
+	if facts.YarnLock != "" {
+		evidence = append(evidence, lockfileEvidence{
+			Name:   "yarn",
+			Source: "yarn.lock",
+		})
+	}
+
+	if facts.PackageLock != "" {
+		evidence = append(evidence, lockfileEvidence{
+			Name:   "npm",
+			Source: "package-lock.json",
+		})
+	}
+
+	return evidence
+}
