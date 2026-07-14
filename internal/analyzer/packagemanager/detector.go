@@ -24,11 +24,41 @@ func Detect(facts *scanner.RepositoryFacts) (*Result, error) {
 		return nil, fmt.Errorf("repository facts cannot be nil")
 	}
 
-	if facts.PackageJSON == "" {
-		return nil, nil
+	if facts.PackageJSON != "" {
+		result, err := detectFromPackageJSON(facts.PackageJSON)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if result != nil {
+			return result, nil
+		}
 	}
 
-	content, err := os.ReadFile(facts.PackageJSON)
+	evidence := collectLockfileEvidence(facts)
+
+	switch len(evidence) {
+	case 0:
+		return nil, nil
+
+	case 1:
+		return &Result{
+			Name:    evidence[0].Name,
+			Version: "",
+			Source:  evidence[0].Source,
+		}, nil
+
+	default:
+		return nil, fmt.Errorf(
+			"conflicting package manager lockfiles detected",
+		)
+	}
+}
+
+func detectFromPackageJSON(packageJSONPath string) (*Result, error) {
+	content, err := os.ReadFile(packageJSONPath)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to read package.json: %w", err)
 	}
@@ -58,6 +88,7 @@ func Detect(facts *scanner.RepositoryFacts) (*Result, error) {
 		Source:  "package.json",
 	}, nil
 }
+
 func parsePackageManager(value string) (string, string, error) {
 	value = strings.TrimSpace(value)
 

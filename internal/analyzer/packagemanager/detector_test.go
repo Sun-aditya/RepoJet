@@ -223,7 +223,6 @@ func TestDetectRejectsNilRepositoryFacts(t *testing.T) {
 	}
 }
 
-
 func TestCollectLockfileEvidence(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -265,5 +264,153 @@ func TestCollectLockfileEvidence(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestDetectPrefersPackageManagerFieldOverLockfiles(t *testing.T) {
+	rootPath := t.TempDir()
+
+	packageJSONPath := filepath.Join(rootPath, "package.json")
+
+	content := `{
+		"name": "test-project",
+		"packageManager": "pnpm@10.12.1"
+	}`
+
+	if err := os.WriteFile(
+		packageJSONPath,
+		[]byte(content),
+		0644,
+	); err != nil {
+		t.Fatalf("failed to create package.json: %v", err)
+	}
+
+	facts := &scanner.RepositoryFacts{
+		PackageJSON: packageJSONPath,
+		YarnLock:    "/repo/yarn.lock",
+		PackageLock: "/repo/package-lock.json",
+	}
+
+	result, err := Detect(facts)
+
+	if err != nil {
+		t.Fatalf("Detect() returned an error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Detect() returned nil result")
+	}
+
+	if result.Name != "pnpm" {
+		t.Errorf("Name = %q, want %q", result.Name, "pnpm")
+	}
+
+	if result.Source != "package.json" {
+		t.Errorf(
+			"Source = %q, want %q",
+			result.Source,
+			"package.json",
+		)
+	}
+}
+
+func TestDetectPackageManagerFromPnpmLockfile(t *testing.T) {
+	facts := &scanner.RepositoryFacts{
+		PnpmLock: "/repo/pnpm-lock.yaml",
+	}
+
+	result, err := Detect(facts)
+
+	if err != nil {
+		t.Fatalf("Detect() returned an error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Detect() returned nil result")
+	}
+
+	if result.Name != "pnpm" {
+		t.Errorf("Name = %q, want %q", result.Name, "pnpm")
+	}
+
+	if result.Version != "" {
+		t.Errorf("Version = %q, want empty string", result.Version)
+	}
+
+	if result.Source != "pnpm-lock.yaml" {
+		t.Errorf(
+			"Source = %q, want %q",
+			result.Source,
+			"pnpm-lock.yaml",
+		)
+	}
+}
+
+func TestDetectPackageManagerFromYarnLockfile(t *testing.T) {
+	facts := &scanner.RepositoryFacts{
+		YarnLock: "/repo/yarn.lock",
+	}
+
+	result, err := Detect(facts)
+
+	if err != nil {
+		t.Fatalf("Detect() returned an error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Detect() returned nil result")
+	}
+
+	if result.Name != "yarn" {
+		t.Errorf("Name = %q, want %q", result.Name, "yarn")
+	}
+
+	if result.Source != "yarn.lock" {
+		t.Errorf(
+			"Source = %q, want %q",
+			result.Source,
+			"yarn.lock",
+		)
+	}
+}
+
+func TestDetectPackageManagerFromPackageLock(t *testing.T) {
+	facts := &scanner.RepositoryFacts{
+		PackageLock: "/repo/package-lock.json",
+	}
+
+	result, err := Detect(facts)
+
+	if err != nil {
+		t.Fatalf("Detect() returned an error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Detect() returned nil result")
+	}
+
+	if result.Name != "npm" {
+		t.Errorf("Name = %q, want %q", result.Name, "npm")
+	}
+
+	if result.Source != "package-lock.json" {
+		t.Errorf(
+			"Source = %q, want %q",
+			result.Source,
+			"package-lock.json",
+		)
+	}
+}
+
+func TestDetectRejectsConflictingLockfiles(t *testing.T) {
+	facts := &scanner.RepositoryFacts{
+		PnpmLock:    "/repo/pnpm-lock.yaml",
+		PackageLock: "/repo/package-lock.json",
+	}
+
+	_, err := Detect(facts)
+
+	if err == nil {
+		t.Fatal("Detect() expected an error, got nil")
 	}
 }
