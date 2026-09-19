@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"repojet/internal/analyzer/packagemanager"
 	gitmanager "repojet/internal/git"
 	"repojet/internal/repository"
 	"repojet/internal/scanner"
@@ -60,6 +61,20 @@ var analyzeCmd = &cobra.Command{
 
 		fmt.Println("Repository scan completed.")
 
+		// Step 8: Detect package manager.
+		fmt.Println("Detecting package manager...")
+
+		packageManagerResult, err := packagemanager.Detect(facts)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to detect package manager: %w",
+				err,
+			)
+		}
+
+		// Step 9: Print package manager result.
+		printPackageManagerResult(packageManagerResult)
+
 		return nil
 	},
 }
@@ -95,6 +110,31 @@ func printFileStatus(name string, path string) {
 	}
 
 	fmt.Printf("%-24s not found\n", name)
+}
+
+func printPackageManagerResult(result *packagemanager.Result) {
+	fmt.Println()
+	fmt.Println("Package Manager")
+	fmt.Println("------------------------------")
+
+	if result == nil {
+		fmt.Println("Name:    unknown")
+		fmt.Println("Version: unknown")
+		fmt.Println("Source:  none")
+		fmt.Println()
+		return
+	}
+
+	fmt.Println("Name:   ", result.Name)
+
+	if result.Version != "" {
+		fmt.Println("Version:", result.Version)
+	} else {
+		fmt.Println("Version: unknown")
+	}
+
+	fmt.Println("Source: ", result.Source)
+	fmt.Println()
 }
 
 func init() {
