@@ -19,6 +19,7 @@ type Facts struct {
 	Framework      Fact              `json:"framework"`
 	PackageManager Fact              `json:"package_manager"`
 	NodeVersion    Fact              `json:"node_version"`
+	Lockfile       string            `json:"lockfile,omitempty"`
 	Scripts        map[string]string `json:"scripts"`
 	EnvFiles       []string          `json:"env_files"`
 	Warnings       []string          `json:"warnings"`

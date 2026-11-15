@@ -58,8 +58,10 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		errorContains          string
 		expectedRuntime        string
 		expectedFramework      string
+		frameworkEvidence      string
 		expectedPackageManager string
 		pmConfidence           facts.Confidence
+		expectedLockfile       string
 		expectedNodeVersion    string
 		expectedScripts        map[string]string
 		expectedEnvFiles       []string
@@ -70,8 +72,10 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 			fixtureDir:             "../../testdata/nextjs-pnpm",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Next.js",
+			frameworkEvidence:      "package.json (dependencies: next)",
 			expectedPackageManager: "pnpm",
 			pmConfidence:           facts.ConfidenceHigh,
+			expectedLockfile:       "pnpm-lock.yaml",
 			expectedNodeVersion:    ">=18",
 			expectedScripts: map[string]string{
 				"dev":   "next dev",
@@ -82,12 +86,14 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 			expectedEnvFiles: []string{".env.example"},
 		},
 		{
-			name:                   "Vite with npm",
+			name:                   "Vite with npm and devDependencies",
 			fixtureDir:             "../../testdata/vite-npm",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Vite",
+			frameworkEvidence:      "package.json (devDependencies: vite)",
 			expectedPackageManager: "npm",
 			pmConfidence:           facts.ConfidenceHigh,
+			expectedLockfile:       "package-lock.json",
 			expectedNodeVersion:    "20",
 			expectedScripts: map[string]string{
 				"dev":   "vite",
@@ -99,8 +105,10 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 			fixtureDir:             "../../testdata/express-yarn",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Express",
+			frameworkEvidence:      "package.json (dependencies: express)",
 			expectedPackageManager: "yarn",
 			pmConfidence:           facts.ConfidenceHigh,
+			expectedLockfile:       "yarn.lock",
 			expectedNodeVersion:    "18.19.0",
 			expectedScripts: map[string]string{
 				"start": "node index.js",
@@ -114,6 +122,7 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 			expectedFramework:      "None",
 			expectedPackageManager: "bun",
 			pmConfidence:           facts.ConfidenceHigh,
+			expectedLockfile:       "bun.lockb",
 			expectedScripts: map[string]string{
 				"dev":   "bun run dev.ts",
 				"build": "bun build",
@@ -126,10 +135,23 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 			expectedFramework:      "Express",
 			expectedPackageManager: "pnpm", // best guess by priority
 			pmConfidence:           facts.ConfidenceLow,
+			expectedLockfile:       "pnpm-lock.yaml",
 			expectedScripts: map[string]string{
 				"start": "node server.js",
 			},
 			warningContains: "multiple lockfiles detected",
+		},
+		{
+			name:                   "Fixture without dev or start scripts",
+			fixtureDir:             "../../testdata/no-dev-start",
+			expectedRuntime:        "Node.js",
+			expectedFramework:      "None",
+			expectedPackageManager: "npm",
+			pmConfidence:           facts.ConfidenceLow,
+			expectedScripts: map[string]string{
+				"build": "tsc",
+				"test":  "jest",
+			},
 		},
 		{
 			name:          "No package.json",
@@ -166,14 +188,23 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 			if res.Runtime.Value != tt.expectedRuntime {
 				t.Errorf("Runtime = %q, want %q", res.Runtime.Value, tt.expectedRuntime)
 			}
+			if res.Runtime.Evidence != "package.json" {
+				t.Errorf("Runtime.Evidence = %q, want %q", res.Runtime.Evidence, "package.json")
+			}
 			if res.Framework.Value != tt.expectedFramework {
 				t.Errorf("Framework = %q, want %q", res.Framework.Value, tt.expectedFramework)
+			}
+			if tt.frameworkEvidence != "" && res.Framework.Evidence != tt.frameworkEvidence {
+				t.Errorf("Framework.Evidence = %q, want %q", res.Framework.Evidence, tt.frameworkEvidence)
 			}
 			if res.PackageManager.Value != tt.expectedPackageManager {
 				t.Errorf("PackageManager = %q, want %q", res.PackageManager.Value, tt.expectedPackageManager)
 			}
 			if res.PackageManager.Confidence != tt.pmConfidence {
 				t.Errorf("PackageManager.Confidence = %q, want %q", res.PackageManager.Confidence, tt.pmConfidence)
+			}
+			if tt.expectedLockfile != "" && res.Lockfile != tt.expectedLockfile {
+				t.Errorf("Lockfile = %q, want %q", res.Lockfile, tt.expectedLockfile)
 			}
 
 			if tt.expectedNodeVersion != "" && res.NodeVersion.Value != tt.expectedNodeVersion {
@@ -215,24 +246,92 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 	}
 }
 
-func TestNodeAnalyzerDisagreeingNodeVersions(t *testing.T) {
+func TestNodeVersionDisagreementOnlyWhenIncompatible(t *testing.T) {
+	t.Run("compatible range and exact format - no warning", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		pkgJSON := `{
+			"name": "compat-test",
+			"engines": {
+				"node": ">=18"
+			}
+		}`
+		if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+			t.Fatalf("failed to write package.json: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(tempDir, ".nvmrc"), []byte("20.10.0\n"), 0644); err != nil {
+			t.Fatalf("failed to write .nvmrc: %v", err)
+		}
+
+		analyzer := NewNodeAnalyzer()
+		res, err := analyzer.Analyze(tempDir)
+		if err != nil {
+			t.Fatalf("Analyze() returned error: %v", err)
+		}
+
+		if res.NodeVersion.Value != ">=18" {
+			t.Errorf("NodeVersion = %q, want %q", res.NodeVersion.Value, ">=18")
+		}
+
+		// Should not warn since ">=18" is a range
+		for _, w := range res.Warnings {
+			if strings.Contains(w, "conflicting Node versions") {
+				t.Errorf("unexpected conflicting Node version warning: %s", w)
+			}
+		}
+	})
+
+	t.Run("clearly incompatible exact versions - warning present", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		pkgJSON := `{
+			"name": "incompat-test",
+			"engines": {
+				"node": "18.0.0"
+			}
+		}`
+		if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+			t.Fatalf("failed to write package.json: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(tempDir, ".nvmrc"), []byte("20.0.0\n"), 0644); err != nil {
+			t.Fatalf("failed to write .nvmrc: %v", err)
+		}
+
+		analyzer := NewNodeAnalyzer()
+		res, err := analyzer.Analyze(tempDir)
+		if err != nil {
+			t.Fatalf("Analyze() returned error: %v", err)
+		}
+
+		if res.NodeVersion.Value != "18.0.0" {
+			t.Errorf("NodeVersion = %q, want %q", res.NodeVersion.Value, "18.0.0")
+		}
+
+		foundWarning := false
+		for _, w := range res.Warnings {
+			if strings.Contains(w, "conflicting Node versions") {
+				foundWarning = true
+				break
+			}
+		}
+		if !foundWarning {
+			t.Error("expected conflicting Node version warning for 18.0.0 vs 20.0.0, got none")
+		}
+	})
+}
+
+func TestPackageManagerAndLockfileDisagreement(t *testing.T) {
 	tempDir := t.TempDir()
 
 	pkgJSON := `{
-		"name": "node-version-test",
-		"engines": {
-			"node": ">=20.0.0"
-		}
+		"name": "disagree-test",
+		"packageManager": "yarn@1.22.19"
 	}`
 	if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
 		t.Fatalf("failed to write package.json: %v", err)
 	}
-
-	if err := os.WriteFile(filepath.Join(tempDir, ".nvmrc"), []byte("18.17.0\n"), 0644); err != nil {
-		t.Fatalf("failed to write .nvmrc: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tempDir, ".node-version"), []byte("16.20.0\n"), 0644); err != nil {
-		t.Fatalf("failed to write .node-version: %v", err)
+	if err := os.WriteFile(filepath.Join(tempDir, "package-lock.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write package-lock.json: %v", err)
 	}
 
 	analyzer := NewNodeAnalyzer()
@@ -241,31 +340,22 @@ func TestNodeAnalyzerDisagreeingNodeVersions(t *testing.T) {
 		t.Fatalf("Analyze() returned error: %v", err)
 	}
 
-	// Should prioritize engines.node
-	if res.NodeVersion.Value != ">=20.0.0" {
-		t.Errorf("NodeVersion.Value = %q, want %q", res.NodeVersion.Value, ">=20.0.0")
+	if res.PackageManager.Value != "yarn" {
+		t.Errorf("PackageManager.Value = %q, want yarn", res.PackageManager.Value)
 	}
-	if res.NodeVersion.Confidence != facts.ConfidenceHigh {
-		t.Errorf("NodeVersion.Confidence = %q, want %q", res.NodeVersion.Confidence, facts.ConfidenceHigh)
+	if res.Lockfile != "package-lock.json" {
+		t.Errorf("Lockfile = %q, want package-lock.json", res.Lockfile)
 	}
 
-	// Should contain warnings about disagreement
-	foundNvmrcWarning := false
-	foundNodeVersionWarning := false
+	foundWarning := false
 	for _, w := range res.Warnings {
-		if strings.Contains(w, ".nvmrc") {
-			foundNvmrcWarning = true
-		}
-		if strings.Contains(w, ".node-version") {
-			foundNodeVersionWarning = true
+		if strings.Contains(w, "packageManager field specifies yarn but package-lock.json is present") {
+			foundWarning = true
+			break
 		}
 	}
-
-	if !foundNvmrcWarning {
-		t.Errorf("expected warning mentioning .nvmrc, got: %v", res.Warnings)
-	}
-	if !foundNodeVersionWarning {
-		t.Errorf("expected warning mentioning .node-version, got: %v", res.Warnings)
+	if !foundWarning {
+		t.Errorf("expected disagreement warning, got: %v", res.Warnings)
 	}
 }
 

@@ -76,33 +76,8 @@ func (a *NodeAnalyzer) Analyze(repoPath string) (*facts.Facts, error) {
 		result.AddWarning("workspaces detected in package.json (monorepo not supported yet)")
 	}
 
-	// Package Manager
-	pmResult, err := packagemanager.Detect(repoFacts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect package manager: %w", err)
-	}
-
-	if pmResult != nil {
-		result.PackageManager = facts.Fact{
-			Value:      pmResult.Name,
-			Evidence:   pmResult.Source,
-			Confidence: pmResult.Confidence,
-		}
-		if len(pmResult.Conflicts) > 1 {
-			result.AddWarning(fmt.Sprintf(
-				"multiple lockfiles detected (%s); chose %s",
-				strings.Join(pmResult.Conflicts, ", "),
-				pmResult.Name,
-			))
-		}
-	} else {
-		result.PackageManager = facts.Fact{
-			Value:      "npm",
-			Evidence:   "default fallback",
-			Confidence: facts.ConfidenceLow,
-		}
-		result.AddWarning("no package manager specified; defaulting to npm")
-	}
+	// Package Manager & Lockfile Detection
+	a.detectPackageManagerAndLockfile(manifest, repoFacts, result)
 
 	// Node Version Detection
 	a.detectNodeVersion(manifest, repoFacts, result)
@@ -129,6 +104,103 @@ func (a *NodeAnalyzer) Analyze(repoPath string) (*facts.Facts, error) {
 	}
 
 	return result, nil
+}
+
+func (a *NodeAnalyzer) detectPackageManagerAndLockfile(
+	manifest packageJSONManifest,
+	repoFacts *scanner.RepositoryFacts,
+	result *facts.Facts,
+) {
+	var presentLockfiles []string
+	if repoFacts.PnpmLock != "" {
+		presentLockfiles = append(presentLockfiles, filepath.Base(repoFacts.PnpmLock))
+	}
+	if repoFacts.YarnLock != "" {
+		presentLockfiles = append(presentLockfiles, filepath.Base(repoFacts.YarnLock))
+	}
+	if repoFacts.BunLock != "" {
+		presentLockfiles = append(presentLockfiles, filepath.Base(repoFacts.BunLock))
+	}
+	if repoFacts.PackageLock != "" {
+		presentLockfiles = append(presentLockfiles, filepath.Base(repoFacts.PackageLock))
+	}
+
+	pmResult, err := packagemanager.Detect(repoFacts)
+	if err != nil {
+		result.PackageManager = facts.Fact{
+			Value:      "npm",
+			Evidence:   "default fallback",
+			Confidence: facts.ConfidenceLow,
+		}
+		result.AddWarning(fmt.Sprintf("package manager detection error: %v; defaulting to npm", err))
+		return
+	}
+
+	if pmResult != nil {
+		result.PackageManager = facts.Fact{
+			Value:      pmResult.Name,
+			Evidence:   pmResult.Source,
+			Confidence: pmResult.Confidence,
+		}
+
+		if pmResult.Source == "package.json" {
+			// packageManager field detected
+			if len(presentLockfiles) > 0 {
+				matchingLockfile := findMatchingLockfile(pmResult.Name, presentLockfiles)
+				if matchingLockfile != "" {
+					result.Lockfile = matchingLockfile
+				} else {
+					result.Lockfile = presentLockfiles[0]
+					result.AddWarning(fmt.Sprintf(
+						"packageManager field specifies %s but %s is present",
+						pmResult.Name,
+						strings.Join(presentLockfiles, ", "),
+					))
+				}
+			}
+		} else {
+			// Detected from lockfile
+			result.Lockfile = pmResult.Source
+			if len(pmResult.Conflicts) > 1 {
+				result.AddWarning(fmt.Sprintf(
+					"multiple lockfiles detected (%s); chose %s",
+					strings.Join(pmResult.Conflicts, ", "),
+					pmResult.Name,
+				))
+			}
+		}
+	} else {
+		result.PackageManager = facts.Fact{
+			Value:      "npm",
+			Evidence:   "default fallback",
+			Confidence: facts.ConfidenceLow,
+		}
+		result.AddWarning("no package manager specified; defaulting to npm")
+	}
+}
+
+func findMatchingLockfile(manager string, lockfiles []string) string {
+	for _, lf := range lockfiles {
+		switch manager {
+		case "npm":
+			if lf == "package-lock.json" {
+				return lf
+			}
+		case "yarn":
+			if lf == "yarn.lock" {
+				return lf
+			}
+		case "pnpm":
+			if lf == "pnpm-lock.yaml" {
+				return lf
+			}
+		case "bun":
+			if lf == "bun.lockb" || lf == "bun.lock" {
+				return lf
+			}
+		}
+	}
+	return ""
 }
 
 func (a *NodeAnalyzer) detectNodeVersion(
@@ -159,14 +231,14 @@ func (a *NodeAnalyzer) detectNodeVersion(
 			Confidence: facts.ConfidenceHigh,
 		}
 
-		if nvmrcVersion != "" && nvmrcVersion != enginesNode {
+		if isNodeVersionIncompatible(enginesNode, nvmrcVersion) {
 			result.AddWarning(fmt.Sprintf(
 				"conflicting Node versions: engines.node (%s) disagrees with .nvmrc (%s); using engines.node",
 				enginesNode,
 				nvmrcVersion,
 			))
 		}
-		if nodeVersionFile != "" && nodeVersionFile != enginesNode {
+		if isNodeVersionIncompatible(enginesNode, nodeVersionFile) {
 			result.AddWarning(fmt.Sprintf(
 				"conflicting Node versions: engines.node (%s) disagrees with .node-version (%s); using engines.node",
 				enginesNode,
@@ -180,7 +252,7 @@ func (a *NodeAnalyzer) detectNodeVersion(
 			Confidence: facts.ConfidenceHigh,
 		}
 
-		if nodeVersionFile != "" && nodeVersionFile != nvmrcVersion {
+		if isNodeVersionIncompatible(nvmrcVersion, nodeVersionFile) {
 			result.AddWarning(fmt.Sprintf(
 				"conflicting Node versions: .nvmrc (%s) disagrees with .node-version (%s); using .nvmrc",
 				nvmrcVersion,
@@ -202,30 +274,53 @@ func (a *NodeAnalyzer) detectNodeVersion(
 	}
 }
 
+func isNodeVersionIncompatible(v1, v2 string) bool {
+	v1 = strings.TrimSpace(v1)
+	v2 = strings.TrimSpace(v2)
+	v1 = strings.TrimPrefix(strings.TrimPrefix(v1, "v"), "V")
+	v2 = strings.TrimPrefix(strings.TrimPrefix(v2, "v"), "V")
+	if v1 == "" || v2 == "" || v1 == v2 {
+		return false
+	}
+
+	// Skip comparison for ranges, aliases, or wildcard specifications
+	if strings.HasPrefix(strings.ToLower(v1), "lts") || strings.HasPrefix(strings.ToLower(v2), "lts") {
+		return false
+	}
+	if strings.ContainsAny(v1, "><=^~*| -") || strings.ContainsAny(v2, "><=^~*| -") {
+		return false
+	}
+
+	// Both are simple version numbers: compare major version
+	major1 := strings.Split(v1, ".")[0]
+	major2 := strings.Split(v2, ".")[0]
+	return major1 != major2
+}
+
 func (a *NodeAnalyzer) detectFramework(
 	manifest packageJSONManifest,
 	repoFacts *scanner.RepositoryFacts,
 	result *facts.Facts,
 ) {
-	hasDep := func(name string) bool {
+	depEvidence := func(name string) string {
 		if manifest.Dependencies != nil {
 			if _, ok := manifest.Dependencies[name]; ok {
-				return true
+				return fmt.Sprintf("package.json (dependencies: %s)", name)
 			}
 		}
 		if manifest.DevDependencies != nil {
 			if _, ok := manifest.DevDependencies[name]; ok {
-				return true
+				return fmt.Sprintf("package.json (devDependencies: %s)", name)
 			}
 		}
-		return false
+		return ""
 	}
 
 	// 1. Next.js
-	if hasDep("next") {
+	if ev := depEvidence("next"); ev != "" {
 		result.Framework = facts.Fact{
 			Value:      "Next.js",
-			Evidence:   "package.json (dependencies: next)",
+			Evidence:   ev,
 			Confidence: facts.ConfidenceHigh,
 		}
 		return
@@ -240,10 +335,10 @@ func (a *NodeAnalyzer) detectFramework(
 	}
 
 	// 2. Vite
-	if hasDep("vite") {
+	if ev := depEvidence("vite"); ev != "" {
 		result.Framework = facts.Fact{
 			Value:      "Vite",
-			Evidence:   "package.json (dependencies: vite)",
+			Evidence:   ev,
 			Confidence: facts.ConfidenceHigh,
 		}
 		return
@@ -258,20 +353,20 @@ func (a *NodeAnalyzer) detectFramework(
 	}
 
 	// 3. Express
-	if hasDep("express") {
+	if ev := depEvidence("express"); ev != "" {
 		result.Framework = facts.Fact{
 			Value:      "Express",
-			Evidence:   "package.json (dependencies: express)",
+			Evidence:   ev,
 			Confidence: facts.ConfidenceHigh,
 		}
 		return
 	}
 
 	// 4. React
-	if hasDep("react") {
+	if ev := depEvidence("react"); ev != "" {
 		result.Framework = facts.Fact{
 			Value:      "React",
-			Evidence:   "package.json (dependencies: react)",
+			Evidence:   ev,
 			Confidence: facts.ConfidenceHigh,
 		}
 		return
