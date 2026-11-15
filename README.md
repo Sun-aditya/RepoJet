@@ -1,10 +1,10 @@
 # RepoJet
 
-RepoJet is an open-source command-line tool that aims to simplify the process of setting up and running software repositories locally.
+RepoJet is an open-source command-line tool that analyzes software repositories and generates a setup plan for running them locally.
 
-The long-term goal is to allow developers to provide a repository URL and let RepoJet analyze the project, determine its runtime and dependency requirements, prepare an isolated development environment, and start the project with minimal manual setup.
+The long-term goal is to allow developers to provide a repository URL and let RepoJet inspect the project, determine its runtime and dependency requirements, prepare an isolated development environment, and start the project with minimal manual setup.
 
-> RepoJet is currently in early development. The first version focuses on analyzing JavaScript and TypeScript repositories hosted on GitHub.
+> RepoJet currently features an end-to-end analyzer and setup planner for Node.js repositories hosted on GitHub.
 
 ## Why RepoJet?
 
@@ -21,330 +21,251 @@ Running an unfamiliar repository often requires several manual steps:
 - Running setup commands and migrations.
 - Finding the correct command to start the application.
 
-RepoJet aims to automate as much of this workflow as possible.
-
-The intended experience is:
+RepoJet automates this workflow:
 
 ```bash
 repojet run https://github.com/owner/repository
 ```
 
-RepoJet will eventually analyze the repository, generate a setup plan, prepare an isolated environment, install dependencies, start required services, run the application, and report the local URL.
-
 ## Current Status
 
-RepoJet is currently in the first stage of development.
+RepoJet currently supports full end-to-end analysis and setup planning for **Node.js** projects:
 
-The current CLI supports:
+- **CLI Interface**: Cobra-based CLI supporting `repojet analyze <github-url>` and `--json` output.
+- **GitHub URL Validation**: Validates HTTPS GitHub repository URLs, rejects unsupported subpaths (`/tree/...`, `/blob/...`), and normalizes trailing slashes.
+- **Isolated Workspace**: Creates temporary workspaces with automatic cleanup on exit or error.
+- **Safe Repository Cloning**: Shallow clones with `--depth 1`, `--no-recurse-submodules`, disabled hooks (`core.hooksPath=/dev/null`), `GIT_TERMINAL_PROMPT=0`, and context cancellation/timeouts.
+- **Repository Scanner**: Safely walks repositories capping file reads at 1 MB, skipping `node_modules`, `.git`, and symlinks.
+- **Node.js Analyzer**: Inspects `package.json`, detects frameworks, package managers, Node versions, and scripts, recording evidence and confidence for every fact.
+- **Setup Planner**: Computes ordered setup steps and precise install (with frozen lockfiles), dev, build, start, and test commands.
+- **Automated Tests & CI**: Comprehensive table-driven tests across fixtures (`testdata/`), golden file JSON validation, and GitHub Actions CI.
 
-- A Cobra-based command-line interface.
-- The `analyze` command.
-- GitHub repository URL validation.
-- Temporary workspace creation and automatic cleanup.
-- Basic Git availability detection.
-- Basic shallow-clone functionality.
-- Automated tests for repository URL validation and workspace management.
+## Real Command Usage & Example Output
 
-The current command is:
+### Human-Readable Report
 
 ```bash
 go run . analyze https://github.com/owner/repository
-```
-
-At this stage, RepoJet does not yet analyze repository contents or start applications.
-
-## Current Workflow
-
-```text
-repojet analyze <github-url>
-        |
-        v
-Validate GitHub URL
-        |
-        v
-Create Temporary Workspace
-        |
-        v
-Clone Repository
-        |
-        v
-Repository Analysis
-        |
-        v
-Generate Setup Plan
-```
-
-Repository cloning, analysis, and setup-plan generation are being implemented incrementally.
-
-## Planned Analysis Pipeline
-
-The first working analyzer will focus on Node.js repositories.
-
-```text
-GitHub Repository
-        |
-        v
-Clone Repository
-        |
-        v
-Scan Important Files
-        |
-        v
-Parse package.json
-        |
-        v
-Detect Package Manager
-        |
-        v
-Detect Framework
-        |
-        v
-Detect Node.js Requirements
-        |
-        v
-Detect Available Scripts
-        |
-        v
-Generate Setup Plan
-        |
-        v
-Display Analysis Result
-```
-
-Initially supported project types are planned to include:
-
-- Node.js
-- React
-- Vite
-- Next.js
-- Express
-
-Support for additional ecosystems will be added incrementally.
-
-## Example
-
-The intended analysis command is:
-
-```bash
-repojet analyze https://github.com/owner/project
 ```
 
 Example output:
 
 ```text
-RepoJet
-
 Repository
---------------------------------
-
-URL              https://github.com/owner/project
+------------------------------
+URL: https://github.com/owner/repository
 
 Project
---------------------------------
-
-Runtime          Node.js
-Framework        Next.js
-Package Manager  pnpm
-Node Requirement >=20
+------------------------------
+Runtime:           Node.js (package.json, high confidence)
+Framework:         Next.js (package.json (dependencies: next), high confidence)
+Package Manager:   pnpm (pnpm-lock.yaml, high confidence)
+Node Requirement:  >=18 (package.json (engines.node), high confidence)
+Lockfile:          pnpm-lock.yaml
+Env Files:         .env.example
 
 Commands
---------------------------------
-
-Install          pnpm install
-Development      pnpm dev
-Build            pnpm build
-Production       pnpm start
+------------------------------
+Install:   pnpm install --frozen-lockfile
+Dev:       pnpm dev
+Build:     pnpm build
+Start:     pnpm start
+Test:      pnpm test
 
 Setup Plan
---------------------------------
-
-1. Install a compatible Node.js version
-2. Install pnpm
-3. Install project dependencies
-4. Start the development server
-
-Analysis completed successfully.
+------------------------------
+1. Install Node.js (>=18)
+   nvm install 18
+2. Enable pnpm
+   corepack enable
+3. Install dependencies
+   pnpm install --frozen-lockfile
+4. Start development server
+   pnpm dev
 ```
 
-The example above represents the intended MVP behavior and is not fully implemented yet.
+### JSON Output (`--json`)
 
-## Architecture
-
-RepoJet follows a modular architecture.
-
-```text
-CLI
- |
- v
-Input Validation
- |
- v
-Workspace Manager
- |
- v
-Git Manager
- |
- v
-Repository Scanner
- |
- v
-Repository Analyzers
- |
- v
-Repository Facts
- |
- v
-Setup Planner
- |
- v
-Setup Plan
- |
- v
-Execution Engine
- |
- v
-Container Runtime
- |
- v
-Running Application
+```bash
+go run . analyze https://github.com/owner/repository --json
 ```
 
-The project separates repository understanding from execution.
+Example JSON output:
 
-The core design is:
-
-```text
-UNDERSTAND
-    |
-    v
-PLAN
-    |
-    v
-EXECUTE
+```json
+{
+  "repository": "https://github.com/owner/repository",
+  "facts": {
+    "runtime": {
+      "value": "Node.js",
+      "evidence": "package.json",
+      "confidence": "high"
+    },
+    "framework": {
+      "value": "Next.js",
+      "evidence": "package.json (dependencies: next)",
+      "confidence": "high"
+    },
+    "package_manager": {
+      "value": "pnpm",
+      "evidence": "pnpm-lock.yaml",
+      "confidence": "high"
+    },
+    "node_version": {
+      "value": ">=18",
+      "evidence": "package.json (engines.node)",
+      "confidence": "high"
+    },
+    "lockfile": "pnpm-lock.yaml",
+    "scripts": {
+      "build": "next build",
+      "dev": "next dev",
+      "start": "next start",
+      "test": "jest"
+    },
+    "env_files": [
+      ".env.example"
+    ],
+    "warnings": []
+  },
+  "plan": {
+    "steps": [
+      {
+        "order": 1,
+        "title": "Install Node.js (>=18)",
+        "command": "nvm install 18"
+      },
+      {
+        "order": 2,
+        "title": "Enable pnpm",
+        "command": "corepack enable"
+      },
+      {
+        "order": 3,
+        "title": "Install dependencies",
+        "command": "pnpm install --frozen-lockfile"
+      },
+      {
+        "order": 4,
+        "title": "Start development server",
+        "command": "pnpm dev"
+      }
+    ],
+    "commands": {
+      "install": "pnpm install --frozen-lockfile",
+      "dev": "pnpm dev",
+      "build": "pnpm build",
+      "start": "pnpm start",
+      "test": "pnpm test"
+    },
+    "warnings": []
+  }
+}
 ```
 
-RepoJet will first inspect the repository and collect facts, then generate a setup plan, and only then execute the approved plan.
+## Supported Detections
+
+| Category | Supported Detections & Sources |
+| :--- | :--- |
+| **Runtime** | Node.js (`package.json`) |
+| **Frameworks** | Next.js, Vite, Express, React (checks `dependencies`, `devDependencies`, and config files: `next.config.*`, `vite.config.*`) |
+| **Package Managers** | `pnpm`, `npm`, `yarn`, `bun` (from `"packageManager"` field and lockfiles: `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `bun.lockb`, `bun.lock`) |
+| **Node Version** | `engines.node`, `.nvmrc`, `.node-version` (incompatibility warnings, range normalization) |
+| **Scripts** | `dev`, `start`, `build`, `test` |
+| **Environment** | `.env.example` |
+
+## Limitations
+
+- **Monorepos**: Workspaces (`"workspaces"` in `package.json`) are detected and flagged with a warning, but monorepos are not yet supported.
+- **Analysis & Planning Only**: RepoJet generates a setup plan and command specifications, but does not yet execute code or run Docker containers.
+- **Runtimes**: Currently supports Node.js. Additional ecosystems (Python, Go, Rust) will follow the generic `Analyzer` interface.
 
 ## Project Structure
 
 ```text
 RepoJet/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── cmd/
 │   ├── root.go
-│   └── analyze.go
-│
+│   ├── analyze.go
+│   └── analyze_test.go
 ├── internal/
+│   ├── analyzer/
+│   │   ├── analyzer.go
+│   │   ├── node.go
+│   │   ├── node_test.go
+│   │   └── packagemanager/
+│   │       ├── detector.go
+│   │       └── detector_test.go
+│   ├── facts/
+│   │   ├── facts.go
+│   │   └── facts_test.go
 │   ├── git/
-│   │   └── git.go
-│   │
+│   │   ├── git.go
+│   │   └── git_test.go
+│   ├── planner/
+│   │   ├── planner.go
+│   │   └── planner_test.go
 │   ├── repository/
 │   │   ├── validator.go
 │   │   └── validator_test.go
-│   │
+│   ├── scanner/
+│   │   ├── scanner.go
+│   │   └── scanner_test.go
 │   └── workspace/
 │       ├── workspace.go
 │       └── workspace_test.go
-│
+├── testdata/
+│   ├── bun-project/
+│   ├── express-yarn/
+│   ├── golden/
+│   ├── invalid-package-json/
+│   ├── multiple-lockfiles/
+│   ├── nextjs-pnpm/
+│   ├── no-dev-start/
+│   ├── no-package-json/
+│   └── vite-npm/
+├── .gitignore
 ├── go.mod
 ├── go.sum
+├── LICENSE
 ├── main.go
+├── Makefile
 └── README.md
 ```
-
-The structure will evolve as new components are implemented.
 
 ## Getting Started
 
 ### Prerequisites
 
-Currently, development requires:
-
-- Go
+- Go (1.20+)
 - Git
-- Linux, macOS, Windows, or WSL2
 
-Docker will become a prerequisite when isolated repository execution is implemented.
-
-### Clone the Repository
+### Build & Run
 
 ```bash
-git clone https://github.com/<your-username>/repojet.git
-cd repojet
+# Build binary
+make build
+
+# Run analyzer
+./repojet analyze https://github.com/owner/repository
+
+# Run analyzer with JSON output
+./repojet analyze https://github.com/owner/repository --json
 ```
 
-### Install Dependencies
+### Run Tests & Linter
 
 ```bash
-go mod download
+# Run tests
+make test
+
+# Run vet / linter
+make lint
 ```
-
-### Run RepoJet
-
-```bash
-go run . --help
-```
-
-Analyze a repository:
-
-```bash
-go run . analyze https://github.com/owner/repository
-```
-
-### Run Tests
-
-Run all tests:
-
-```bash
-go test ./...
-```
-
-Run tests with verbose output:
-
-```bash
-go test ./... -v
-```
-
-### Future Ideas
-
-- `.repojet.yml` configuration files.
-- Repository analysis confidence scores.
-- Explainable detection results and evidence.
-- AI-assisted analysis for unsupported repositories.
-- GitHub authentication and private repository support.
-- Cross-platform installers and package-manager distribution.
-- VS Code integration.
-- Local graphical dashboard.
-
-## Development Principles
-
-RepoJet is being built around several principles:
-
-**Analyze before executing.**
-
-Repository code should not be executed until RepoJet understands the project and generates a setup plan.
-
-**Prefer deterministic detection.**
-
-Configuration files, manifests, lockfiles, and project metadata should be used before AI-based inference.
-
-**Keep analysis and execution separate.**
-
-Repository analysis should produce a structured setup plan that can be inspected, tested, and later consumed by different execution engines.
-
-**Treat repository code as untrusted.**
-
-Future execution features should use isolation and explicit safety controls rather than blindly executing repository scripts on the host system.
-
-**Build incrementally.**
-
-Each component should be implemented and tested independently before being connected to the complete pipeline.
-
-## Contributing
-
-RepoJet is currently in early development.
-
-Contribution guidelines and development documentation will be added as the project becomes more stable.
 
 ## License
 
-A license has not been selected yet.
+This project is licensed under the [MIT License](LICENSE).

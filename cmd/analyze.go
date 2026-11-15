@@ -70,9 +70,11 @@ func AnalyzeLocal(repoPath string, repoIdentifier string, analyzers []analyzer.A
 }
 
 var analyzeCmd = &cobra.Command{
-	Use:   "analyze <github-url>",
-	Short: "Analyze a GitHub repository and generate a setup plan",
-	Args:  cobra.ExactArgs(1),
+	Use:           "analyze <github-url>",
+	Short:         "Analyze a GitHub repository and generate a setup plan",
+	Args:          cobra.ExactArgs(1),
+	SilenceUsage:  true,
+	SilenceErrors: true,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repositoryURL := args[0]

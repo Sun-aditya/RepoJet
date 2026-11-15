@@ -3,7 +3,9 @@ package git
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"time"
 )
 
 func CheckInstalled() error {
@@ -23,12 +25,25 @@ func CloneContext(ctx context.Context, repositoryURL string, destination string)
 	cmd := exec.CommandContext(
 		ctx,
 		"git",
+		"-c", "core.hooksPath=/dev/null",
 		"clone",
-		"--depth",
-		"1",
+		"--depth", "1",
+		"--no-recurse-submodules",
 		repositoryURL,
 		destination,
 	)
+
+	// Prevent git from prompting for terminal credentials and hanging
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+
+	// Ensure the process is forcefully killed if context times out or is canceled
+	cmd.Cancel = func() error {
+		if cmd.Process != nil {
+			return cmd.Process.Kill()
+		}
+		return nil
+	}
+	cmd.WaitDelay = 2 * time.Second
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

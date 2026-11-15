@@ -3,9 +3,14 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+var update = flag.Bool("update", false, "update golden files")
 
 func TestAnalyzeLocalFixtures(t *testing.T) {
 	tests := []struct {
@@ -175,33 +180,33 @@ func TestPrintJSONGolden(t *testing.T) {
 		t.Fatalf("PrintJSON failed: %v", err)
 	}
 
-	// Verify valid JSON
-	var parsed map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
-		t.Fatalf("PrintJSON produced invalid JSON: %v", err)
+	goldenPath := filepath.Join("..", "testdata", "golden", "nextjs-pnpm.golden.json")
+
+	if *update {
+		if err := os.WriteFile(goldenPath, buf.Bytes(), 0644); err != nil {
+			t.Fatalf("failed to update golden file: %v", err)
+		}
+		t.Log("updated golden file:", goldenPath)
 	}
 
-	if parsed["repository"] != "https://github.com/example/nextjs-pnpm" {
-		t.Errorf("repository in JSON = %v, want https://github.com/example/nextjs-pnpm", parsed["repository"])
+	goldenBytes, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("failed to read golden file %s: %v", goldenPath, err)
 	}
 
-	factsMap, ok := parsed["facts"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected facts object in JSON, got %T", parsed["facts"])
+	// Normalize both to generic JSON maps to prevent formatting/newline differences
+	var actualMap, expectedMap map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &actualMap); err != nil {
+		t.Fatalf("failed to unmarshal actual JSON: %v", err)
+	}
+	if err := json.Unmarshal(goldenBytes, &expectedMap); err != nil {
+		t.Fatalf("failed to unmarshal golden JSON: %v", err)
 	}
 
-	runtimeMap := factsMap["runtime"].(map[string]any)
-	if runtimeMap["value"] != "Node.js" {
-		t.Errorf("runtime value = %v, want Node.js", runtimeMap["value"])
-	}
+	actualNormalized, _ := json.MarshalIndent(actualMap, "", "  ")
+	expectedNormalized, _ := json.MarshalIndent(expectedMap, "", "  ")
 
-	planMap, ok := parsed["plan"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected plan object in JSON, got %T", parsed["plan"])
-	}
-
-	commandsMap := planMap["commands"].(map[string]any)
-	if commandsMap["dev"] != "pnpm dev" {
-		t.Errorf("commands.dev = %v, want pnpm dev", commandsMap["dev"])
+	if string(actualNormalized) != string(expectedNormalized) {
+		t.Errorf("JSON output does not match golden file %s.\nGot:\n%s\nWant:\n%s", goldenPath, string(actualNormalized), string(expectedNormalized))
 	}
 }

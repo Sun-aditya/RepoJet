@@ -1,0 +1,68 @@
+{
+  "repository": "https://github.com/example/nextjs-pnpm",
+  "facts": {
+    "runtime": {
+      "value": "Node.js",
+      "evidence": "package.json",
+      "confidence": "high"
+    },
+    "framework": {
+      "value": "Next.js",
+      "evidence": "package.json (dependencies: next)",
+      "confidence": "high"
+    },
+    "package_manager": {
+      "value": "pnpm",
+      "evidence": "pnpm-lock.yaml",
+      "confidence": "high"
+    },
+    "node_version": {
+      "value": ">=18",
+      "evidence": "package.json (engines.node)",
+      "confidence": "high"
+    },
+    "lockfile": "pnpm-lock.yaml",
+    "scripts": {
+      "build": "next build",
+      "dev": "next dev",
+      "start": "next start",
+      "test": "jest"
+    },
+    "env_files": [
+      ".env.example"
+    ],
+    "warnings": []
+  },
+  "plan": {
+    "steps": [
+      {
+        "order": 1,
+        "title": "Install Node.js (>=18)",
+        "command": "nvm install 18"
+      },
+      {
+        "order": 2,
+        "title": "Enable pnpm",
+        "command": "corepack enable"
+      },
+      {
+        "order": 3,
+        "title": "Install dependencies",
+        "command": "pnpm install --frozen-lockfile"
+      },
+      {
+        "order": 4,
+        "title": "Start development server",
+        "command": "pnpm dev"
+      }
+    ],
+    "commands": {
+      "install": "pnpm install --frozen-lockfile",
+      "dev": "pnpm dev",
+      "build": "pnpm build",
+      "start": "pnpm start",
+      "test": "pnpm test"
+    },
+    "warnings": []
+  }
+}

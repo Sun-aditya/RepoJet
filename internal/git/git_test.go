@@ -1,9 +1,11 @@
 package git
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -62,10 +64,10 @@ func TestClone(t *testing.T) {
 		"-c",
 		"user.name=RepoJet Test",
 		"-c",
-		"user.email=repojet-test@example.com",
+		"user.email=test@repojet.local",
 		"commit",
 		"-m",
-		"initial commit",
+		"Initial commit",
 	)
 
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -103,5 +105,21 @@ func TestCloneFailure(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("Clone() expected an error, got nil")
+	}
+}
+
+func TestCloneContextTimeout(t *testing.T) {
+	destinationDir := filepath.Join(t.TempDir(), "cloned-repository")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	err := CloneContext(ctx, "https://github.com/example/repo", destinationDir)
+	if err == nil {
+		t.Fatal("expected error on canceled context, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "timed out or was canceled") {
+		t.Errorf("error %q does not mention timeout/cancellation", err.Error())
 	}
 }
