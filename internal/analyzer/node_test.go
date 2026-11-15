@@ -56,6 +56,7 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		fixtureDir             string
 		expectError            bool
 		errorContains          string
+		expectedType           string
 		expectedRuntime        string
 		expectedFramework      string
 		frameworkEvidence      string
@@ -70,9 +71,10 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		{
 			name:                   "Next.js with pnpm",
 			fixtureDir:             "../../testdata/nextjs-pnpm",
+			expectedType:           "application",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Next.js",
-			frameworkEvidence:      "package.json (dependencies: next)",
+			frameworkEvidence:      "package.json (scripts: dev)",
 			expectedPackageManager: "pnpm",
 			pmConfidence:           facts.ConfidenceHigh,
 			expectedLockfile:       "pnpm-lock.yaml",
@@ -88,9 +90,10 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		{
 			name:                   "Vite with npm and devDependencies",
 			fixtureDir:             "../../testdata/vite-npm",
+			expectedType:           "application",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Vite",
-			frameworkEvidence:      "package.json (devDependencies: vite)",
+			frameworkEvidence:      "package.json (scripts: dev)",
 			expectedPackageManager: "npm",
 			pmConfidence:           facts.ConfidenceHigh,
 			expectedLockfile:       "package-lock.json",
@@ -103,6 +106,7 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		{
 			name:                   "Express with yarn",
 			fixtureDir:             "../../testdata/express-yarn",
+			expectedType:           "application",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Express",
 			frameworkEvidence:      "package.json (dependencies: express)",
@@ -118,6 +122,7 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		{
 			name:                   "Bun project with packageManager field",
 			fixtureDir:             "../../testdata/bun-project",
+			expectedType:           "application",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "None",
 			expectedPackageManager: "bun",
@@ -131,6 +136,7 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		{
 			name:                   "Multiple conflicting lockfiles",
 			fixtureDir:             "../../testdata/multiple-lockfiles",
+			expectedType:           "application",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "Express",
 			expectedPackageManager: "pnpm", // best guess by priority
@@ -144,6 +150,7 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 		{
 			name:                   "Fixture without dev or start scripts",
 			fixtureDir:             "../../testdata/no-dev-start",
+			expectedType:           "unknown",
 			expectedRuntime:        "Node.js",
 			expectedFramework:      "None",
 			expectedPackageManager: "npm",
@@ -185,6 +192,9 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
+			if tt.expectedType != "" && res.Type.Value != tt.expectedType {
+				t.Errorf("Type = %q, want %q", res.Type.Value, tt.expectedType)
+			}
 			if res.Runtime.Value != tt.expectedRuntime {
 				t.Errorf("Runtime = %q, want %q", res.Runtime.Value, tt.expectedRuntime)
 			}
@@ -246,6 +256,126 @@ func TestNodeAnalyzerFixtures(t *testing.T) {
 	}
 }
 
+func TestNodeAnalyzerProjectType(t *testing.T) {
+	t.Run("detects library when main/exports present and no dev/start script", func(t *testing.T) {
+		tempDir := t.TempDir()
+		pkgJSON := `{
+			"name": "my-lib",
+			"main": "./dist/index.js",
+			"scripts": {
+				"build": "tsc",
+				"test": "jest"
+			}
+		}`
+		if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+			t.Fatalf("failed to write package.json: %v", err)
+		}
+
+		analyzer := NewNodeAnalyzer()
+		res, err := analyzer.Analyze(tempDir)
+		if err != nil {
+			t.Fatalf("Analyze() returned error: %v", err)
+		}
+
+		if res.Type.Value != "library" {
+			t.Errorf("Type.Value = %q, want %q", res.Type.Value, "library")
+		}
+		if res.Type.Confidence != facts.ConfidenceHigh {
+			t.Errorf("Type.Confidence = %q, want high", res.Type.Confidence)
+		}
+	})
+
+	t.Run("detects application when dev or start script is present", func(t *testing.T) {
+		tempDir := t.TempDir()
+		pkgJSON := `{
+			"name": "my-app",
+			"scripts": {
+				"dev": "vite"
+			}
+		}`
+		if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+			t.Fatalf("failed to write package.json: %v", err)
+		}
+
+		analyzer := NewNodeAnalyzer()
+		res, err := analyzer.Analyze(tempDir)
+		if err != nil {
+			t.Fatalf("Analyze() returned error: %v", err)
+		}
+
+		if res.Type.Value != "application" {
+			t.Errorf("Type.Value = %q, want %q", res.Type.Value, "application")
+		}
+	})
+}
+
+func TestNodeAnalyzerSecondaryFrameworks(t *testing.T) {
+	tempDir := t.TempDir()
+	pkgJSON := `{
+		"name": "fullstack-app",
+		"scripts": {
+			"dev": "react-scripts start",
+			"build": "react-scripts build"
+		},
+		"dependencies": {
+			"react": "^18.0.0",
+			"express": "^4.18.2"
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatalf("failed to write package.json: %v", err)
+	}
+
+	analyzer := NewNodeAnalyzer()
+	res, err := analyzer.Analyze(tempDir)
+	if err != nil {
+		t.Fatalf("Analyze() returned error: %v", err)
+	}
+
+	if res.Framework.Value != "React" {
+		t.Errorf("Primary Framework = %q, want React", res.Framework.Value)
+	}
+
+	foundExpress := false
+	for _, sf := range res.SecondaryFrameworks {
+		if sf.Value == "Express" {
+			foundExpress = true
+			break
+		}
+	}
+	if !foundExpress {
+		t.Errorf("expected Express in SecondaryFrameworks: %+v", res.SecondaryFrameworks)
+	}
+}
+
+func TestNodeAnalyzerServerFrameworksOnlyDependencies(t *testing.T) {
+	tempDir := t.TempDir()
+	// express in devDependencies (e.g. for testing) should NOT count as the framework
+	pkgJSON := `{
+		"name": "http-client",
+		"main": "./index.js",
+		"devDependencies": {
+			"express": "^4.18.2"
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatalf("failed to write package.json: %v", err)
+	}
+
+	analyzer := NewNodeAnalyzer()
+	res, err := analyzer.Analyze(tempDir)
+	if err != nil {
+		t.Fatalf("Analyze() returned error: %v", err)
+	}
+
+	if res.Framework.Value != "None" {
+		t.Errorf("Framework = %q, want None (express in devDependencies should not count)", res.Framework.Value)
+	}
+	if len(res.SecondaryFrameworks) != 0 {
+		t.Errorf("SecondaryFrameworks = %+v, want empty", res.SecondaryFrameworks)
+	}
+}
+
 func TestNodeVersionDisagreementOnlyWhenIncompatible(t *testing.T) {
 	t.Run("compatible range and exact format - no warning", func(t *testing.T) {
 		tempDir := t.TempDir()
@@ -273,7 +403,6 @@ func TestNodeVersionDisagreementOnlyWhenIncompatible(t *testing.T) {
 			t.Errorf("NodeVersion = %q, want %q", res.NodeVersion.Value, ">=18")
 		}
 
-		// Should not warn since ">=18" is a range
 		for _, w := range res.Warnings {
 			if strings.Contains(w, "conflicting Node versions") {
 				t.Errorf("unexpected conflicting Node version warning: %s", w)

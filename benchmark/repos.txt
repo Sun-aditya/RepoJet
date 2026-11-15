@@ -1,53 +1,66 @@
-# Next.js projects
-https://github.com/vercel/next-learn # expected: Next.js, pnpm
-https://github.com/leerob/site # expected: Next.js, pnpm
-https://github.com/shadcn-ui/ui # expected: Next.js, pnpm
-https://github.com/steven-tey/precedent # expected: Next.js, pnpm
-https://github.com/mheap/nextjs-starter-template # expected: Next.js, npm
-https://github.com/vercel/platforms # expected: Next.js, pnpm
+# ==============================================================================
+# RepoJet Benchmark Repositories (40 Total: 30 Tuning, 10 Held-out)
+# All URLs verified with git ls-remote (GIT_TERMINAL_PROMPT=0)
+# ==============================================================================
 
-# Vite projects
-https://github.com/vitejs/vite-plugin-react # expected: Vite, pnpm
-https://github.com/antfu/vitesse-lite # expected: Vite, pnpm
-https://github.com/sapphi-red/vite-plugin-static-copy # expected: Vite, pnpm
-https://github.com/sitepoint/vite-starter-template # expected: Vite, npm
-https://github.com/alex-streza/vite-react-ts-tailwind-starter # expected: Vite, npm
-https://github.com/ElMassimo/vite_ruby # expected: Vite, pnpm
+# --- TUNING SET (30 Repositories) ---
 
-# React projects (CRA or standalone)
-https://github.com/facebook/create-react-app # expected: React, yarn
-https://github.com/react-boilerplate/react-boilerplate # expected: React, npm
-https://github.com/davezuko/react-redux-starter-kit # expected: React, yarn
-https://github.com/enaqx/awesome-react # expected: None, npm
-https://github.com/akveo/ngx-admin # expected: React, npm
+# Application Repositories
+https://github.com/vercel/next-learn # set: tuning, category: app, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/leerob/site # set: tuning, category: app, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/shadcn-ui/ui # set: tuning, category: app, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/steven-tey/precedent # set: tuning, category: app, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/vercel/platforms # set: tuning, category: app, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/vitejs/vite-plugin-react # set: tuning, category: app, expected_framework: Vite, expected_pm: pnpm, expected_type: application
+https://github.com/antfu/vitesse-lite # set: tuning, category: app, expected_framework: Vite, expected_pm: pnpm, expected_type: application
+https://github.com/sapphi-red/vite-plugin-static-copy # set: tuning, category: app, expected_framework: Vite, expected_pm: pnpm, expected_type: application
+https://github.com/vikejs/vike # set: tuning, category: app, expected_framework: Vite, expected_pm: pnpm, expected_type: application
+https://github.com/ElMassimo/vite_ruby # set: tuning, category: app, expected_framework: Vite, expected_pm: pnpm, expected_type: application
+https://github.com/facebook/create-react-app # set: tuning, category: app, expected_framework: none, expected_pm: npm, expected_type: application
+https://github.com/react-boilerplate/react-boilerplate # set: tuning, category: app, expected_framework: React, expected_pm: npm, expected_type: application
+https://github.com/davezuko/react-redux-starter-kit # set: tuning, category: app, expected_framework: React, expected_pm: yarn, expected_type: application
+https://github.com/akveo/ngx-admin # set: tuning, category: app, expected_framework: none, expected_pm: npm, expected_type: application
+https://github.com/expressjs/cors # set: tuning, category: app, expected_framework: Express, expected_pm: npm, expected_type: application
+https://github.com/hagopj13/node-express-boilerplate # set: tuning, category: app, expected_framework: Express, expected_pm: yarn, expected_type: application
+https://github.com/santiq/bulletproof-nodejs # set: tuning, category: app, expected_framework: Express, expected_pm: npm, expected_type: application
 
-# Express projects
-https://github.com/expressjs/express # expected: Express, npm
-https://github.com/expressjs/cors # expected: Express, npm
-https://github.com/expressjs/body-parser # expected: Express, npm
-https://github.com/expressjs/morgan # expected: Express, npm
-https://github.com/hagopj13/node-express-boilerplate # expected: Express, yarn
-https://github.com/santiq/bulletproof-nodejs # expected: Express, npm
+# Library Repositories
+https://github.com/expressjs/express # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/expressjs/body-parser # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/chalk/chalk # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/sindresorhus/is # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/tj/commander.js # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/lodash/lodash # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/isaacs/node-glob # set: tuning, category: library, expected_framework: none, expected_pm: npm, expected_type: library
 
-# Plain Node.js libraries / utilities
-https://github.com/chalk/chalk # expected: None, npm
-https://github.com/sindresorhus/is # expected: None, npm
-https://github.com/tj/commander.js # expected: None, npm
-https://github.com/lodash/lodash # expected: None, npm
-https://github.com/axios/axios # expected: None, npm
-https://github.com/isaacs/node-glob # expected: None, npm
+# Monorepos
+https://github.com/vercel/turbo # set: tuning, category: monorepo, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/calcom/cal.com # set: tuning, category: monorepo, expected_framework: Next.js, expected_pm: yarn, expected_type: application
 
-# Monorepos / Workspace projects
-https://github.com/vercel/turbo # expected: Next.js, pnpm
-https://github.com/trpc/trpc # expected: None, pnpm
-https://github.com/calcom/cal.com # expected: Next.js, yarn
-https://github.com/freeCodeCamp/freeCodeCamp # expected: Next.js, pnpm
-https://github.com/colinhacks/zod # expected: None, yarn
-https://github.com/storybookjs/storybook # expected: React, yarn
+# Non-Node Repositories
+https://github.com/pallets/flask # set: tuning, category: non-node
+https://github.com/psf/requests # set: tuning, category: non-node
+https://github.com/gin-gonic/gin # set: tuning, category: non-node
+https://github.com/spf13/cobra # set: tuning, category: non-node
 
-# Non-Node repos (expecting clean "unsupported project type" failure)
-https://github.com/pallets/flask # expected: non-node
-https://github.com/psf/requests # expected: non-node
-https://github.com/gin-gonic/gin # expected: non-node
-https://github.com/spf13/cobra # expected: non-node
-https://github.com/BurntSushi/ripgrep # expected: non-node
+# --- HELD-OUT SET (10 Repositories) ---
+
+# Application Repositories
+https://github.com/ixartz/Next-js-Boilerplate # set: held-out, category: app, expected_framework: Next.js, expected_pm: npm, expected_type: application
+https://github.com/antfu/vitesse # set: held-out, category: app, expected_framework: Vite, expected_pm: pnpm, expected_type: application
+
+# Library Repositories
+https://github.com/expressjs/morgan # set: held-out, category: library, expected_framework: none, expected_pm: npm, expected_type: library
+https://github.com/axios/axios # set: held-out, category: library, expected_framework: none, expected_pm: bun, expected_type: library
+
+# No Manifest Case
+https://github.com/enaqx/awesome-react # set: held-out, category: no-manifest
+
+# Monorepos
+https://github.com/trpc/trpc # set: held-out, category: monorepo, expected_framework: Next.js, expected_pm: pnpm, expected_type: application
+https://github.com/freeCodeCamp/freeCodeCamp # set: held-out, category: monorepo, expected_framework: none, expected_pm: pnpm, expected_type: application
+https://github.com/colinhacks/zod # set: held-out, category: monorepo, expected_framework: Next.js, expected_pm: npm, expected_type: application
+https://github.com/storybookjs/storybook # set: held-out, category: monorepo, expected_framework: Next.js, expected_pm: yarn, expected_type: application
+
+# Non-Node Repositories
+https://github.com/BurntSushi/ripgrep # set: held-out, category: non-node

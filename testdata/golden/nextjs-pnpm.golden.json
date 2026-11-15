@@ -1,6 +1,11 @@
 {
   "repository": "https://github.com/example/nextjs-pnpm",
   "facts": {
+    "type": {
+      "value": "application",
+      "evidence": "package.json (dev/start scripts)",
+      "confidence": "high"
+    },
     "runtime": {
       "value": "Node.js",
       "evidence": "package.json",
@@ -8,16 +13,23 @@
     },
     "framework": {
       "value": "Next.js",
-      "evidence": "package.json (dependencies: next)",
+      "evidence": "package.json (scripts: dev)",
       "confidence": "high"
     },
+    "secondary_frameworks": [
+      {
+        "value": "React",
+        "evidence": "package.json (dependencies: react)",
+        "confidence": "medium"
+      }
+    ],
     "package_manager": {
       "value": "pnpm",
       "evidence": "pnpm-lock.yaml",
       "confidence": "high"
     },
     "node_version": {
-      "value": ">=18",
+      "value": "\u003e=18",
       "evidence": "package.json (engines.node)",
       "confidence": "high"
     },
@@ -37,7 +49,7 @@
     "steps": [
       {
         "order": 1,
-        "title": "Install Node.js (>=18)",
+        "title": "Install Node.js (\u003e=18)",
         "command": "nvm install 18"
       },
       {

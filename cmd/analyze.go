@@ -144,8 +144,18 @@ func PrintReport(w io.Writer, result *AnalysisResult) {
 
 	fmt.Fprintln(w, "Project")
 	fmt.Fprintln(w, "------------------------------")
+	if result.Facts.Type.Value != "" {
+		printFactLine(w, "Type", result.Facts.Type)
+	}
 	printFactLine(w, "Runtime", result.Facts.Runtime)
 	printFactLine(w, "Framework", result.Facts.Framework)
+	if len(result.Facts.SecondaryFrameworks) > 0 {
+		var secNames []string
+		for _, sf := range result.Facts.SecondaryFrameworks {
+			secNames = append(secNames, sf.Value)
+		}
+		fmt.Fprintf(w, "%-18s %s\n", "Secondary Fw:", strings.Join(secNames, ", "))
+	}
 	printFactLine(w, "Package Manager", result.Facts.PackageManager)
 	printFactLine(w, "Node Requirement", result.Facts.NodeVersion)
 	if result.Facts.Lockfile != "" {

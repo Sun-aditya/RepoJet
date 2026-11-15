@@ -15,8 +15,10 @@ type Fact struct {
 }
 
 type Facts struct {
+	Type                  Fact              `json:"type"`
 	Runtime               Fact              `json:"runtime"`
 	Framework             Fact              `json:"framework"`
+	SecondaryFrameworks   []Fact            `json:"secondary_frameworks,omitempty"`
 	PackageManager        Fact              `json:"package_manager"`
 	PackageManagerVersion string            `json:"package_manager_version,omitempty"`
 	NodeVersion           Fact              `json:"node_version"`
@@ -28,9 +30,10 @@ type Facts struct {
 
 func New() *Facts {
 	return &Facts{
-		Scripts:  make(map[string]string),
-		EnvFiles: make([]string, 0),
-		Warnings: make([]string, 0),
+		SecondaryFrameworks: make([]Fact, 0),
+		Scripts:             make(map[string]string),
+		EnvFiles:            make([]string, 0),
+		Warnings:            make([]string, 0),
 	}
 }
 

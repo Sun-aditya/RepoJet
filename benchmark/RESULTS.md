@@ -1,86 +1,66 @@
-# RepoJet Benchmark Results
+# RepoJet Benchmark Results (Step 7b)
 
-Run on 40 public GitHub repositories.
+Evaluated on 40 public GitHub repositories: **30 Tuning Set** and **10 Held-out Set**.
 
-## Summary
+## Benchmark Metrics Comparison
 
-| Metric | Result |
-| :--- | :--- |
-| **Total Repositories** | 40 |
-| **Node.js Repositories** | 35 |
-| **Successful Node.js Analyses** | 31 / 35 (88.6%) |
-| **Framework Detection Accuracy** | 19 / 35 (54.3%) |
-| **Package Manager Accuracy** | 28 / 35 (80.0%) |
-| **Non-Node Repositories** | 5 |
-| **Non-Node Clean Failure Rate** | 5 / 5 (100.0%) |
-| **Average Analysis Duration** | 0 ms |
+| Metric | Tuning Set (30) | Held-out Set (10) | Overall (40) |
+| :--- | :--- | :--- | :--- |
+| **Clone Success** | 30 / 30 (100.0%) | 10 / 10 (100.0%) | 40 / 40 (100.0%) |
+| **Analysis Success (of Cloned)** | 26 / 26 (100.0%) | 8 / 8 (100.0%) | 34 / 34 (100.0%) |
+| **Framework Accuracy (of Analyzed)** | 25 / 26 (96.2%) | 8 / 8 (100.0%) | 33 / 34 (97.1%) |
+| &nbsp;&nbsp;↳ *Applications* | 16 / 17 (94.1%) | 2 / 2 (100.0%) | 18 / 19 (94.7%) |
+| &nbsp;&nbsp;↳ *Libraries* | 7 / 7 (100.0%) | 2 / 2 (100.0%) | 9 / 9 (100.0%) |
+| &nbsp;&nbsp;↳ *Monorepos* | 2 / 2 (100.0%) | 4 / 4 (100.0%) | 6 / 6 (100.0%) |
+| **Package Manager Accuracy (of Analyzed)** | 26 / 26 (100.0%) | 8 / 8 (100.0%) | 34 / 34 (100.0%) |
+| **Project Type Accuracy (of Analyzed)** | 22 / 26 (84.6%) | 6 / 8 (75.0%) | 28 / 34 (82.4%) |
+| **Clean Failure (Non-Node / No-Manifest)** | 4 / 4 (100.0%) | 2 / 2 (100.0%) | 6 / 6 (100.0%) |
 
 ## Repository Details
 
-| Repository | Expected Framework | Detected Framework | Expected PM | Detected PM | Duration | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `vercel/next-learn` | Next.js | Next.js | pnpm | pnpm | 0ms | PASS |
-| `leerob/site` | Next.js | Next.js | pnpm | pnpm | 0ms | PASS |
-| `shadcn-ui/ui` | Next.js | Next.js | pnpm | pnpm | 0ms | PASS |
-| `steven-tey/precedent` | Next.js | Next.js | pnpm | pnpm | 0ms | PASS |
-| `mheap/nextjs-starter-template` | Next.js | - | npm | - | 0ms | ERROR (clone_error) |
-| `vercel/platforms` | Next.js | Next.js | pnpm | pnpm | 0ms | PASS |
-| `vitejs/vite-plugin-react` | Vite | Vite | pnpm | pnpm | 0ms | PASS |
-| `antfu/vitesse-lite` | Vite | Vite | pnpm | pnpm | 0ms | PASS |
-| `sapphi-red/vite-plugin-static-copy` | Vite | Vite | pnpm | pnpm | 0ms | PASS |
-| `sitepoint/vite-starter-template` | Vite | - | npm | - | 0ms | ERROR (clone_error) |
-| `alex-streza/vite-react-ts-tailwind-starter` | Vite | - | npm | - | 0ms | ERROR (clone_error) |
-| `ElMassimo/vite_ruby` | Vite | Vite | pnpm | pnpm | 0ms | PASS |
-| `facebook/create-react-app` | React | None | yarn | npm | 0ms | MISMATCH |
-| `react-boilerplate/react-boilerplate` | React | Express | npm | npm | 0ms | MISMATCH |
-| `davezuko/react-redux-starter-kit` | React | Express | yarn | yarn | 0ms | MISMATCH |
-| `enaqx/awesome-react` | None | - | npm | - | 0ms | ERROR (unsupported_project_type) |
-| `akveo/ngx-admin` | React | None | npm | npm | 0ms | MISMATCH |
-| `expressjs/express` | Express | None | npm | npm | 0ms | MISMATCH |
-| `expressjs/cors` | Express | Express | npm | npm | 0ms | PASS |
-| `expressjs/body-parser` | Express | None | npm | npm | 0ms | MISMATCH |
-| `expressjs/morgan` | Express | None | npm | npm | 0ms | MISMATCH |
-| `hagopj13/node-express-boilerplate` | Express | Express | yarn | yarn | 0ms | PASS |
-| `santiq/bulletproof-nodejs` | Express | Express | npm | npm | 0ms | PASS |
-| `chalk/chalk` | None | None | npm | npm | 0ms | PASS |
-| `sindresorhus/is` | None | None | npm | npm | 0ms | PASS |
-| `tj/commander.js` | None | None | npm | npm | 0ms | PASS |
-| `lodash/lodash` | None | None | npm | npm | 0ms | PASS |
-| `axios/axios` | None | Express | npm | bun | 0ms | MISMATCH |
-| `isaacs/node-glob` | None | None | npm | npm | 0ms | PASS |
-| `vercel/turbo` | Next.js | Next.js | pnpm | pnpm | 0ms | PASS |
-| `trpc/trpc` | None | Next.js | pnpm | pnpm | 0ms | MISMATCH |
-| `calcom/cal.com` | Next.js | Next.js | yarn | yarn | 0ms | PASS |
-| `freeCodeCamp/freeCodeCamp` | Next.js | None | pnpm | pnpm | 0ms | MISMATCH |
-| `colinhacks/zod` | None | Next.js | yarn | npm | 0ms | MISMATCH |
-| `storybookjs/storybook` | React | Next.js | yarn | yarn | 0ms | MISMATCH |
-| `pallets/flask` | Non-Node | - | Non-Node | - | 0ms | PASS (clean failure) |
-| `psf/requests` | Non-Node | - | Non-Node | - | 0ms | PASS (clean failure) |
-| `gin-gonic/gin` | Non-Node | - | Non-Node | - | 0ms | PASS (clean failure) |
-| `spf13/cobra` | Non-Node | - | Non-Node | - | 0ms | PASS (clean failure) |
-| `BurntSushi/ripgrep` | Non-Node | - | Non-Node | - | 0ms | PASS (clean failure) |
+| Set | Category | Repository | Expected Fw | Detected Fw | Expected PM | Detected PM | Type | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| tuning | app | `vercel/next-learn` | Next.js | Next.js | pnpm | pnpm | application | PASS |
+| tuning | app | `leerob/site` | Next.js | Next.js (+React) | pnpm | pnpm | application | PASS |
+| tuning | app | `shadcn-ui/ui` | Next.js | Next.js (+Vite) | pnpm | pnpm | application | PASS |
+| tuning | app | `steven-tey/precedent` | Next.js | Next.js (+React) | pnpm | pnpm | application | PASS |
+| tuning | app | `vercel/platforms` | Next.js | Next.js (+React) | pnpm | pnpm | application | PASS |
+| tuning | app | `vitejs/vite-plugin-react` | Vite | Vite | pnpm | pnpm | application | PASS |
+| tuning | app | `antfu/vitesse-lite` | Vite | Vite | pnpm | pnpm | application | PASS |
+| tuning | app | `sapphi-red/vite-plugin-static-copy` | Vite | Vite | pnpm | pnpm | application | PASS |
+| tuning | app | `vikejs/vike` | Vite | Vite | pnpm | pnpm | application | PASS |
+| tuning | app | `ElMassimo/vite_ruby` | Vite | Vite | pnpm | pnpm | unknown | PASS |
+| tuning | app | `facebook/create-react-app` | none | None | npm | npm | application | PASS |
+| tuning | app | `react-boilerplate/react-boilerplate` | React | React (+Express) | npm | npm | application | PASS |
+| tuning | app | `davezuko/react-redux-starter-kit` | React | React (+Express) | yarn | yarn | application | PASS |
+| tuning | app | `akveo/ngx-admin` | none | None | npm | npm | application | PASS |
+| tuning | app | `expressjs/cors` | Express | None | npm | npm | library | MISMATCH |
+| tuning | app | `hagopj13/node-express-boilerplate` | Express | Express | yarn | yarn | application | PASS |
+| tuning | app | `santiq/bulletproof-nodejs` | Express | Express | npm | npm | application | PASS |
+| tuning | library | `expressjs/express` | none | None | npm | npm | unknown | PASS |
+| tuning | library | `expressjs/body-parser` | none | None | npm | npm | library | PASS |
+| tuning | library | `chalk/chalk` | none | None | npm | npm | library | PASS |
+| tuning | library | `sindresorhus/is` | none | None | npm | npm | library | PASS |
+| tuning | library | `tj/commander.js` | none | None | npm | npm | library | PASS |
+| tuning | library | `lodash/lodash` | none | None | npm | npm | library | PASS |
+| tuning | library | `isaacs/node-glob` | none | None | npm | npm | library | PASS |
+| tuning | monorepo | `vercel/turbo` | Next.js | Next.js (+Vite) | pnpm | pnpm | unknown | PASS |
+| tuning | monorepo | `calcom/cal.com` | Next.js | Next.js (+Vite) | yarn | yarn | application | PASS |
+| tuning | non-node | `pallets/flask` | - | - | - | - | - | PASS (clean failure) |
+| tuning | non-node | `psf/requests` | - | - | - | - | - | PASS (clean failure) |
+| tuning | non-node | `gin-gonic/gin` | - | - | - | - | - | PASS (clean failure) |
+| tuning | non-node | `spf13/cobra` | - | - | - | - | - | PASS (clean failure) |
+| held-out | app | `ixartz/Next-js-Boilerplate` | Next.js | Next.js (+React) | npm | npm | application | PASS |
+| held-out | app | `antfu/vitesse` | Vite | Vite | pnpm | pnpm | application | PASS |
+| held-out | library | `expressjs/morgan` | none | None | npm | npm | unknown | PASS |
+| held-out | library | `axios/axios` | none | None | bun | bun | application | PASS |
+| held-out | no-manifest | `enaqx/awesome-react` | - | - | - | - | - | PASS (clean failure) |
+| held-out | monorepo | `trpc/trpc` | Next.js | Next.js (+Vite,React) | pnpm | pnpm | application | PASS |
+| held-out | monorepo | `freeCodeCamp/freeCodeCamp` | none | None | pnpm | pnpm | application | PASS |
+| held-out | monorepo | `colinhacks/zod` | Next.js | Next.js (+Vite) | npm | npm | application | PASS |
+| held-out | monorepo | `storybookjs/storybook` | Next.js | Next.js (+Vite) | yarn | yarn | application | PASS |
+| held-out | non-node | `BurntSushi/ripgrep` | - | - | - | - | - | PASS (clean failure) |
 
 ## Failures & Discrepancies
 
-- **https://github.com/mheap/nextjs-starter-template**: Failed with clone_error: failed to clone repository: exit status 128: Cloning into '/tmp/repojet-3084907813'...
-fatal: could not read Username for 'https://github.com': terminal prompts disabled
-
-- **https://github.com/sitepoint/vite-starter-template**: Failed with clone_error: failed to clone repository: exit status 128: Cloning into '/tmp/repojet-3243114628'...
-fatal: could not read Username for 'https://github.com': terminal prompts disabled
-
-- **https://github.com/alex-streza/vite-react-ts-tailwind-starter**: Failed with clone_error: failed to clone repository: exit status 128: Cloning into '/tmp/repojet-3193692520'...
-fatal: could not read Username for 'https://github.com': terminal prompts disabled
-
-- **https://github.com/facebook/create-react-app**: Expected React / yarn, detected None / npm
-- **https://github.com/react-boilerplate/react-boilerplate**: Expected React / npm, detected Express / npm
-- **https://github.com/davezuko/react-redux-starter-kit**: Expected React / yarn, detected Express / yarn
-- **https://github.com/enaqx/awesome-react**: Failed with unsupported_project_type: unsupported project type: no matching analyzer found
-- **https://github.com/akveo/ngx-admin**: Expected React / npm, detected None / npm
-- **https://github.com/expressjs/express**: Expected Express / npm, detected None / npm
-- **https://github.com/expressjs/body-parser**: Expected Express / npm, detected None / npm
-- **https://github.com/expressjs/morgan**: Expected Express / npm, detected None / npm
-- **https://github.com/axios/axios**: Expected None / npm, detected Express / bun
-- **https://github.com/trpc/trpc**: Expected None / pnpm, detected Next.js / pnpm
-- **https://github.com/freeCodeCamp/freeCodeCamp**: Expected Next.js / pnpm, detected None / pnpm
-- **https://github.com/colinhacks/zod**: Expected None / yarn, detected Next.js / npm
-- **https://github.com/storybookjs/storybook**: Expected React / yarn, detected Next.js / yarn
+- **https://github.com/expressjs/cors** (tuning): Expected framework "Express" / PM "npm", detected framework "None" / PM "npm"

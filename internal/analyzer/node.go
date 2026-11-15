@@ -33,6 +33,9 @@ func (a *NodeAnalyzer) Detect(repoPath string) bool {
 
 type packageJSONManifest struct {
 	Name            string            `json:"name"`
+	Main            string            `json:"main"`
+	Exports         any               `json:"exports"`
+	Bin             any               `json:"bin"`
 	Scripts         map[string]string `json:"scripts"`
 	Engines         struct {
 		Node string `json:"node"`
@@ -71,9 +74,17 @@ func (a *NodeAnalyzer) Analyze(repoPath string) (*facts.Facts, error) {
 		Confidence: facts.ConfidenceHigh,
 	}
 
-	// Workspaces check (monorepos not supported yet)
-	if manifest.Workspaces != nil {
-		result.AddWarning("workspaces detected in package.json (monorepo not supported yet)")
+	// Project Type Detection (application, library, or unknown)
+	a.detectProjectType(manifest, result)
+
+	// Workspaces check (monorepo root)
+	isMonorepo := manifest.Workspaces != nil
+	if isMonorepo {
+		result.AddWarning("workspaces detected in package.json (monorepo root detected; framework detection at root may reflect monorepo tooling or doc sites)")
+		subprojects := a.discoverSubprojects(repoFacts)
+		if len(subprojects) > 0 {
+			result.AddWarning(fmt.Sprintf("%d workspace subproject(s) discovered: %s", len(subprojects), strings.Join(subprojects, ", ")))
+		}
 	}
 
 	// Package Manager & Lockfile Detection
@@ -82,8 +93,8 @@ func (a *NodeAnalyzer) Analyze(repoPath string) (*facts.Facts, error) {
 	// Node Version Detection
 	a.detectNodeVersion(manifest, repoFacts, result)
 
-	// Framework Detection (Priority: Next.js -> Vite -> Express -> React)
-	a.detectFramework(manifest, repoFacts, result)
+	// Framework Detection (Primary and Secondary frameworks)
+	a.detectFrameworks(manifest, repoFacts, isMonorepo, result)
 
 	// Scripts Extraction (extract dev, start, build, test only)
 	if manifest.Scripts != nil {
@@ -104,6 +115,49 @@ func (a *NodeAnalyzer) Analyze(repoPath string) (*facts.Facts, error) {
 	}
 
 	return result, nil
+}
+
+func (a *NodeAnalyzer) detectProjectType(manifest packageJSONManifest, result *facts.Facts) {
+	hasDevOrStart := false
+	if manifest.Scripts != nil {
+		if strings.TrimSpace(manifest.Scripts["dev"]) != "" || strings.TrimSpace(manifest.Scripts["start"]) != "" {
+			hasDevOrStart = true
+		}
+	}
+
+	hasEntrypoint := strings.TrimSpace(manifest.Main) != "" || manifest.Exports != nil || manifest.Bin != nil
+
+	if hasEntrypoint && !hasDevOrStart {
+		result.Type = facts.Fact{
+			Value:      "library",
+			Evidence:   "package.json (main/exports/bin, no dev/start script)",
+			Confidence: facts.ConfidenceHigh,
+		}
+	} else if hasDevOrStart {
+		result.Type = facts.Fact{
+			Value:      "application",
+			Evidence:   "package.json (dev/start scripts)",
+			Confidence: facts.ConfidenceHigh,
+		}
+	} else {
+		result.Type = facts.Fact{
+			Value:      "unknown",
+			Evidence:   "package.json",
+			Confidence: facts.ConfidenceLow,
+		}
+	}
+}
+
+func (a *NodeAnalyzer) discoverSubprojects(repoFacts *scanner.RepositoryFacts) []string {
+	var subs []string
+	for _, f := range repoFacts.Files {
+		clean := filepath.ToSlash(f)
+		if strings.HasSuffix(clean, "package.json") && clean != "package.json" {
+			subDir := filepath.Dir(clean)
+			subs = append(subs, subDir)
+		}
+	}
+	return subs
 }
 
 func (a *NodeAnalyzer) detectPackageManagerAndLockfile(
@@ -284,7 +338,6 @@ func isNodeVersionIncompatible(v1, v2 string) bool {
 		return false
 	}
 
-	// Skip comparison for ranges, aliases, or wildcard specifications
 	if strings.HasPrefix(strings.ToLower(v1), "lts") || strings.HasPrefix(strings.ToLower(v2), "lts") {
 		return false
 	}
@@ -292,91 +345,149 @@ func isNodeVersionIncompatible(v1, v2 string) bool {
 		return false
 	}
 
-	// Both are simple version numbers: compare major version
 	major1 := strings.Split(v1, ".")[0]
 	major2 := strings.Split(v2, ".")[0]
 	return major1 != major2
 }
 
-func (a *NodeAnalyzer) detectFramework(
+type frameworkCandidate struct {
+	name       string
+	evidence   string
+	confidence facts.Confidence
+	priority   int // lower = higher priority
+}
+
+func (a *NodeAnalyzer) detectFrameworks(
 	manifest packageJSONManifest,
 	repoFacts *scanner.RepositoryFacts,
+	isMonorepo bool,
 	result *facts.Facts,
 ) {
-	depEvidence := func(name string) string {
+	var candidates []frameworkCandidate
+
+	// Check script contents for build/dev runners (highest confidence)
+	scriptContains := func(token string) string {
+		if manifest.Scripts == nil {
+			return ""
+		}
+		for _, sName := range []string{"dev", "start", "build"} {
+			cmd := manifest.Scripts[sName]
+			words := strings.Fields(cmd)
+			for _, w := range words {
+				if w == token || strings.HasPrefix(w, token) {
+					return fmt.Sprintf("package.json (scripts: %s)", sName)
+				}
+			}
+		}
+		return ""
+	}
+
+	depEvidence := func(depName string) string {
 		if manifest.Dependencies != nil {
-			if _, ok := manifest.Dependencies[name]; ok {
-				return fmt.Sprintf("package.json (dependencies: %s)", name)
+			if _, ok := manifest.Dependencies[depName]; ok {
+				return fmt.Sprintf("package.json (dependencies: %s)", depName)
 			}
 		}
 		if manifest.DevDependencies != nil {
-			if _, ok := manifest.DevDependencies[name]; ok {
-				return fmt.Sprintf("package.json (devDependencies: %s)", name)
+			if _, ok := manifest.DevDependencies[depName]; ok {
+				return fmt.Sprintf("package.json (devDependencies: %s)", depName)
 			}
 		}
 		return ""
 	}
 
 	// 1. Next.js
-	if ev := depEvidence("next"); ev != "" {
-		result.Framework = facts.Fact{
-			Value:      "Next.js",
-			Evidence:   ev,
-			Confidence: facts.ConfidenceHigh,
-		}
-		return
-	}
-	if repoFacts.NextConfig != "" {
-		result.Framework = facts.Fact{
-			Value:      "Next.js",
-			Evidence:   filepath.Base(repoFacts.NextConfig),
-			Confidence: facts.ConfidenceHigh,
-		}
-		return
+	if ev := scriptContains("next"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Next.js", evidence: ev, confidence: facts.ConfidenceHigh, priority: 1})
+	} else if repoFacts.NextConfig != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Next.js", evidence: filepath.Base(repoFacts.NextConfig), confidence: facts.ConfidenceHigh, priority: 1})
+	} else if ev := depEvidence("next"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Next.js", evidence: ev, confidence: facts.ConfidenceMedium, priority: 1})
 	}
 
 	// 2. Vite
-	if ev := depEvidence("vite"); ev != "" {
-		result.Framework = facts.Fact{
-			Value:      "Vite",
-			Evidence:   ev,
-			Confidence: facts.ConfidenceHigh,
-		}
-		return
+	if ev := scriptContains("vite"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Vite", evidence: ev, confidence: facts.ConfidenceHigh, priority: 2})
+	} else if repoFacts.ViteConfig != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Vite", evidence: filepath.Base(repoFacts.ViteConfig), confidence: facts.ConfidenceHigh, priority: 2})
+	} else if ev := depEvidence("vite"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Vite", evidence: ev, confidence: facts.ConfidenceMedium, priority: 2})
 	}
-	if repoFacts.ViteConfig != "" {
+
+	// 3. React
+	if ev := scriptContains("react-scripts"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "React", evidence: ev, confidence: facts.ConfidenceHigh, priority: 3})
+	} else if ev := depEvidence("react"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "React", evidence: ev, confidence: facts.ConfidenceMedium, priority: 3})
+	}
+
+	// 4. Server Frameworks: Express, Fastify, Koa, Nest
+	// IMPORTANT: Server frameworks count ONLY when in "dependencies", NOT "devDependencies"
+	serverDep := func(depName string) string {
+		if manifest.Dependencies != nil {
+			if _, ok := manifest.Dependencies[depName]; ok {
+				return fmt.Sprintf("package.json (dependencies: %s)", depName)
+			}
+		}
+		return ""
+	}
+
+	if ev := serverDep("express"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Express", evidence: ev, confidence: facts.ConfidenceHigh, priority: 4})
+	}
+	if ev := serverDep("fastify"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Fastify", evidence: ev, confidence: facts.ConfidenceHigh, priority: 5})
+	}
+	if ev := serverDep("koa"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "Koa", evidence: ev, confidence: facts.ConfidenceHigh, priority: 6})
+	}
+	if ev := serverDep("@nestjs/core"); ev != "" {
+		candidates = append(candidates, frameworkCandidate{name: "NestJS", evidence: ev, confidence: facts.ConfidenceHigh, priority: 7})
+	}
+
+	if len(candidates) == 0 {
 		result.Framework = facts.Fact{
-			Value:      "Vite",
-			Evidence:   filepath.Base(repoFacts.ViteConfig),
-			Confidence: facts.ConfidenceHigh,
+			Value:      "None",
+			Evidence:   "none",
+			Confidence: facts.ConfidenceLow,
 		}
 		return
 	}
 
-	// 3. Express
-	if ev := depEvidence("express"); ev != "" {
-		result.Framework = facts.Fact{
-			Value:      "Express",
-			Evidence:   ev,
-			Confidence: facts.ConfidenceHigh,
+	// Sort candidates by priority
+	bestIdx := 0
+	for i := 1; i < len(candidates); i++ {
+		if candidates[i].priority < candidates[bestIdx].priority {
+			bestIdx = i
 		}
-		return
 	}
 
-	// 4. React
-	if ev := depEvidence("react"); ev != "" {
-		result.Framework = facts.Fact{
-			Value:      "React",
-			Evidence:   ev,
-			Confidence: facts.ConfidenceHigh,
-		}
-		return
+	primary := candidates[bestIdx]
+	confidence := primary.confidence
+	if isMonorepo {
+		confidence = facts.ConfidenceLow
 	}
 
-	// None detected
 	result.Framework = facts.Fact{
-		Value:      "None",
-		Evidence:   "none",
-		Confidence: facts.ConfidenceLow,
+		Value:      primary.name,
+		Evidence:   primary.evidence,
+		Confidence: confidence,
+	}
+
+	// Populate secondary frameworks for any other unique candidates
+	for i, c := range candidates {
+		if i == bestIdx || c.name == primary.name {
+			continue
+		}
+		// If primary is Next.js, React is naturally its underlying library; include as secondary if detected
+		cConfidence := c.confidence
+		if isMonorepo {
+			cConfidence = facts.ConfidenceLow
+		}
+		result.SecondaryFrameworks = append(result.SecondaryFrameworks, facts.Fact{
+			Value:      c.name,
+			Evidence:   c.evidence,
+			Confidence: cConfidence,
+		})
 	}
 }
