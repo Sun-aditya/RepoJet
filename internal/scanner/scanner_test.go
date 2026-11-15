@@ -179,7 +179,6 @@ func TestScanFindsKnownRepositoryFiles(t *testing.T) {
 	}
 }
 
-
 func TestScanFindsReadmeVariant(t *testing.T) {
 	rootPath := t.TempDir()
 
@@ -205,5 +204,135 @@ func TestScanFindsReadmeVariant(t *testing.T) {
 			facts.Readme,
 			readmePath,
 		)
+	}
+}
+
+func TestScanSkipsNodeModulesAndGit(t *testing.T) {
+	rootPath := t.TempDir()
+
+	nodeModules := filepath.Join(rootPath, "node_modules", "some-pkg")
+	if err := os.MkdirAll(nodeModules, 0755); err != nil {
+		t.Fatalf("failed to create node_modules: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nodeModules, "package.json"), []byte(`{"name":"nested"}`), 0644); err != nil {
+		t.Fatalf("failed to write nested package.json: %v", err)
+	}
+
+	gitDir := filepath.Join(rootPath, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		t.Fatalf("failed to create .git: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "package.json"), []byte(`{"name":"git-fake"}`), 0644); err != nil {
+		t.Fatalf("failed to write git fake package.json: %v", err)
+	}
+
+	rootPackageJSON := filepath.Join(rootPath, "package.json")
+	if err := os.WriteFile(rootPackageJSON, []byte(`{"name":"root"}`), 0644); err != nil {
+		t.Fatalf("failed to write root package.json: %v", err)
+	}
+
+	facts, err := Scan(rootPath)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	if facts.PackageJSON != rootPackageJSON {
+		t.Errorf("PackageJSON = %q, want %q", facts.PackageJSON, rootPackageJSON)
+	}
+
+	for _, f := range facts.Files {
+		if filepath.HasPrefix(f, "node_modules") || filepath.HasPrefix(f, ".git") {
+			t.Errorf("expected to skip node_modules and .git, found: %s", f)
+		}
+	}
+}
+
+func TestScanSkipsSymlinks(t *testing.T) {
+	rootPath := t.TempDir()
+
+	targetFile := filepath.Join(rootPath, "actual-package.json")
+	if err := os.WriteFile(targetFile, []byte(`{"name":"symlink-target"}`), 0644); err != nil {
+		t.Fatalf("failed to create target file: %v", err)
+	}
+
+	symlinkPath := filepath.Join(rootPath, "package.json")
+	if err := os.Symlink(targetFile, symlinkPath); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	facts, err := Scan(rootPath)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	// Symlink should be skipped, so facts.PackageJSON should not point to the symlink
+	if facts.PackageJSON == symlinkPath {
+		t.Errorf("expected symlink to be ignored, got PackageJSON = %q", facts.PackageJSON)
+	}
+
+	// ReadFile should also refuse to read symlinks
+	_, err = ReadFile(symlinkPath)
+	if err == nil {
+		t.Error("ReadFile() expected error reading symlink, got nil")
+	}
+}
+
+func TestScanCapFileSizeAndReadFile(t *testing.T) {
+	rootPath := t.TempDir()
+
+	largeFile := filepath.Join(rootPath, "package.json")
+	// Create file slightly larger than 1 MB
+	data := make([]byte, MaxFileSize+10)
+	if err := os.WriteFile(largeFile, data, 0644); err != nil {
+		t.Fatalf("failed to create large file: %v", err)
+	}
+
+	facts, err := Scan(rootPath)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	// Oversized file should be ignored
+	if facts.PackageJSON != "" {
+		t.Errorf("expected oversized package.json to be skipped, got %q", facts.PackageJSON)
+	}
+
+	// ReadFile should refuse file exceeding MaxFileSize
+	_, err = ReadFile(largeFile)
+	if err == nil {
+		t.Error("ReadFile() expected error for oversized file, got nil")
+	}
+}
+
+func TestScanFindsBunAndConfigs(t *testing.T) {
+	rootPath := t.TempDir()
+
+	files := []string{
+		"package.json",
+		"bun.lockb",
+		"vite.config.ts",
+		"next.config.mjs",
+	}
+
+	for _, f := range files {
+		p := filepath.Join(rootPath, f)
+		if err := os.WriteFile(p, []byte("content"), 0644); err != nil {
+			t.Fatalf("failed to create %s: %v", f, err)
+		}
+	}
+
+	facts, err := Scan(rootPath)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	if facts.BunLock != filepath.Join(rootPath, "bun.lockb") {
+		t.Errorf("BunLock = %q, want %q", facts.BunLock, filepath.Join(rootPath, "bun.lockb"))
+	}
+	if facts.ViteConfig != filepath.Join(rootPath, "vite.config.ts") {
+		t.Errorf("ViteConfig = %q, want %q", facts.ViteConfig, filepath.Join(rootPath, "vite.config.ts"))
+	}
+	if facts.NextConfig != filepath.Join(rootPath, "next.config.mjs") {
+		t.Errorf("NextConfig = %q, want %q", facts.NextConfig, filepath.Join(rootPath, "next.config.mjs"))
 	}
 }
