@@ -336,3 +336,21 @@ func TestScanFindsBunAndConfigs(t *testing.T) {
 		t.Errorf("NextConfig = %q, want %q", facts.NextConfig, filepath.Join(rootPath, "next.config.mjs"))
 	}
 }
+
+func TestScanFindsBunLockTextVariant(t *testing.T) {
+	rootPath := t.TempDir()
+
+	bunLockPath := filepath.Join(rootPath, "bun.lock")
+	if err := os.WriteFile(bunLockPath, []byte("# bun lockfile v1"), 0644); err != nil {
+		t.Fatalf("failed to create bun.lock: %v", err)
+	}
+
+	facts, err := Scan(rootPath)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	if facts.BunLock != bunLockPath {
+		t.Errorf("BunLock = %q, want %q", facts.BunLock, bunLockPath)
+	}
+}
