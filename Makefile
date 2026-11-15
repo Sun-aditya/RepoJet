@@ -1,4 +1,4 @@
-.PHONY: all build test lint clean
+.PHONY: all build test lint benchmark clean
 
 all: build test
 
@@ -15,6 +15,9 @@ lint:
 	else \
 		echo "golangci-lint not installed; running go vet only"; \
 	fi
+
+benchmark:
+	go run ./benchmark
 
 clean:
 	rm -f repojet

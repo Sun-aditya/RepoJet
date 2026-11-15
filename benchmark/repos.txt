@@ -1,0 +1,53 @@
+# Next.js projects
+https://github.com/vercel/next-learn # expected: Next.js, pnpm
+https://github.com/leerob/site # expected: Next.js, pnpm
+https://github.com/shadcn-ui/ui # expected: Next.js, pnpm
+https://github.com/steven-tey/precedent # expected: Next.js, pnpm
+https://github.com/mheap/nextjs-starter-template # expected: Next.js, npm
+https://github.com/vercel/platforms # expected: Next.js, pnpm
+
+# Vite projects
+https://github.com/vitejs/vite-plugin-react # expected: Vite, pnpm
+https://github.com/antfu/vitesse-lite # expected: Vite, pnpm
+https://github.com/sapphi-red/vite-plugin-static-copy # expected: Vite, pnpm
+https://github.com/sitepoint/vite-starter-template # expected: Vite, npm
+https://github.com/alex-streza/vite-react-ts-tailwind-starter # expected: Vite, npm
+https://github.com/ElMassimo/vite_ruby # expected: Vite, pnpm
+
+# React projects (CRA or standalone)
+https://github.com/facebook/create-react-app # expected: React, yarn
+https://github.com/react-boilerplate/react-boilerplate # expected: React, npm
+https://github.com/davezuko/react-redux-starter-kit # expected: React, yarn
+https://github.com/enaqx/awesome-react # expected: None, npm
+https://github.com/akveo/ngx-admin # expected: React, npm
+
+# Express projects
+https://github.com/expressjs/express # expected: Express, npm
+https://github.com/expressjs/cors # expected: Express, npm
+https://github.com/expressjs/body-parser # expected: Express, npm
+https://github.com/expressjs/morgan # expected: Express, npm
+https://github.com/hagopj13/node-express-boilerplate # expected: Express, yarn
+https://github.com/santiq/bulletproof-nodejs # expected: Express, npm
+
+# Plain Node.js libraries / utilities
+https://github.com/chalk/chalk # expected: None, npm
+https://github.com/sindresorhus/is # expected: None, npm
+https://github.com/tj/commander.js # expected: None, npm
+https://github.com/lodash/lodash # expected: None, npm
+https://github.com/axios/axios # expected: None, npm
+https://github.com/isaacs/node-glob # expected: None, npm
+
+# Monorepos / Workspace projects
+https://github.com/vercel/turbo # expected: Next.js, pnpm
+https://github.com/trpc/trpc # expected: None, pnpm
+https://github.com/calcom/cal.com # expected: Next.js, yarn
+https://github.com/freeCodeCamp/freeCodeCamp # expected: Next.js, pnpm
+https://github.com/colinhacks/zod # expected: None, yarn
+https://github.com/storybookjs/storybook # expected: React, yarn
+
+# Non-Node repos (expecting clean "unsupported project type" failure)
+https://github.com/pallets/flask # expected: non-node
+https://github.com/psf/requests # expected: non-node
+https://github.com/gin-gonic/gin # expected: non-node
+https://github.com/spf13/cobra # expected: non-node
+https://github.com/BurntSushi/ripgrep # expected: non-node

@@ -20,3 +20,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Benchmark raw results (commit only RESULTS.md)
+benchmark/results.json
