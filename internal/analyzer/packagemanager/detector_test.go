@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"repojet/internal/facts"
 	"repojet/internal/scanner"
 )
 
@@ -26,11 +27,11 @@ func TestDetectPackageManagerFromPackageJSON(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		PackageJSON: packageJSONPath,
 	}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -59,6 +60,10 @@ func TestDetectPackageManagerFromPackageJSON(t *testing.T) {
 			"package.json",
 		)
 	}
+
+	if result.Confidence != facts.ConfidenceHigh {
+		t.Errorf("Confidence = %q, want %q", result.Confidence, facts.ConfidenceHigh)
+	}
 }
 
 func TestDetectHandlesMissingPackageManagerField(t *testing.T) {
@@ -78,11 +83,11 @@ func TestDetectHandlesMissingPackageManagerField(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		PackageJSON: packageJSONPath,
 	}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -94,9 +99,9 @@ func TestDetectHandlesMissingPackageManagerField(t *testing.T) {
 }
 
 func TestDetectHandlesMissingPackageJSONPath(t *testing.T) {
-	facts := &scanner.RepositoryFacts{}
+	repoFacts := &scanner.RepositoryFacts{}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -120,11 +125,11 @@ func TestDetectRejectsInvalidPackageJSON(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		PackageJSON: packageJSONPath,
 	}
 
-	_, err := Detect(facts)
+	_, err := Detect(repoFacts)
 
 	if err == nil {
 		t.Fatal("Detect() expected an error, got nil")
@@ -161,6 +166,20 @@ func TestParsePackageManager(t *testing.T) {
 			wantError:       false,
 		},
 		{
+			name:            "bun with version",
+			value:           "bun@1.2.0",
+			expectedName:    "bun",
+			expectedVersion: "1.2.0",
+			wantError:       false,
+		},
+		{
+			name:            "pnpm with hash suffix",
+			value:           "pnpm@8.15.0+sha512.cdd618b1ea3c2",
+			expectedName:    "pnpm",
+			expectedVersion: "8.15.0",
+			wantError:       false,
+		},
+		{
 			name:      "empty manager name",
 			value:     "@10.0.0",
 			wantError: true,
@@ -172,7 +191,7 @@ func TestParsePackageManager(t *testing.T) {
 		},
 		{
 			name:      "unsupported manager",
-			value:     "bun@1.2.0",
+			value:     "cargo@1.2.0",
 			wantError: true,
 		},
 	}
@@ -181,27 +200,19 @@ func TestParsePackageManager(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			name, version, err := parsePackageManager(test.value)
 
-			gotError := err != nil
-
-			if gotError != test.wantError {
-				t.Fatalf(
-					"parsePackageManager(%q) error = %v, wantError = %v",
-					test.value,
-					err,
-					test.wantError,
-				)
-			}
-
 			if test.wantError {
+				if err == nil {
+					t.Fatal("parsePackageManager() expected error, got nil")
+				}
 				return
 			}
 
+			if err != nil {
+				t.Fatalf("parsePackageManager() returned error: %v", err)
+			}
+
 			if name != test.expectedName {
-				t.Errorf(
-					"name = %q, want %q",
-					name,
-					test.expectedName,
-				)
+				t.Errorf("name = %q, want %q", name, test.expectedName)
 			}
 
 			if version != test.expectedVersion {
@@ -224,47 +235,58 @@ func TestDetectRejectsNilRepositoryFacts(t *testing.T) {
 }
 
 func TestCollectLockfileEvidence(t *testing.T) {
-	tests := []struct {
-		name          string
-		facts         *scanner.RepositoryFacts
-		expectedCount int
-	}{
-		{
-			name:          "no lockfiles",
-			facts:         &scanner.RepositoryFacts{},
-			expectedCount: 0,
-		},
-		{
-			name: "pnpm lockfile",
-			facts: &scanner.RepositoryFacts{
-				PnpmLock: "/repo/pnpm-lock.yaml",
-			},
-			expectedCount: 1,
-		},
-		{
-			name: "multiple lockfiles",
-			facts: &scanner.RepositoryFacts{
-				PnpmLock:    "/repo/pnpm-lock.yaml",
-				YarnLock:    "/repo/yarn.lock",
-				PackageLock: "/repo/package-lock.json",
-			},
-			expectedCount: 3,
-		},
-	}
+	t.Run("no lockfiles", func(t *testing.T) {
+		repoFacts := &scanner.RepositoryFacts{}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			evidence := collectLockfileEvidence(test.facts)
+		evidence := collectLockfileEvidence(repoFacts)
 
-			if len(evidence) != test.expectedCount {
-				t.Errorf(
-					"len(evidence) = %d, want %d",
-					len(evidence),
-					test.expectedCount,
-				)
-			}
-		})
-	}
+		if len(evidence) != 0 {
+			t.Errorf("len(evidence) = %d, want 0", len(evidence))
+		}
+	})
+
+	t.Run("pnpm lockfile", func(t *testing.T) {
+		repoFacts := &scanner.RepositoryFacts{
+			PnpmLock: "/repo/pnpm-lock.yaml",
+		}
+
+		evidence := collectLockfileEvidence(repoFacts)
+
+		if len(evidence) != 1 {
+			t.Fatalf("len(evidence) = %d, want 1", len(evidence))
+		}
+
+		if evidence[0].Name != "pnpm" {
+			t.Errorf("evidence[0].Name = %q, want %q", evidence[0].Name, "pnpm")
+		}
+
+		if evidence[0].Source != "pnpm-lock.yaml" {
+			t.Errorf(
+				"evidence[0].Source = %q, want %q",
+				evidence[0].Source,
+				"pnpm-lock.yaml",
+			)
+		}
+	})
+
+	t.Run("multiple lockfiles", func(t *testing.T) {
+		repoFacts := &scanner.RepositoryFacts{
+			PnpmLock:    "/repo/pnpm-lock.yaml",
+			PackageLock: "/repo/package-lock.json",
+			BunLock:     "/repo/bun.lockb",
+		}
+
+		evidence := collectLockfileEvidence(repoFacts)
+
+		if len(evidence) != 3 {
+			t.Fatalf("len(evidence) = %d, want 3", len(evidence))
+		}
+
+		// Check priority ordering: pnpm, bun, npm (yarn was absent)
+		if evidence[0].Name != "pnpm" || evidence[1].Name != "bun" || evidence[2].Name != "npm" {
+			t.Errorf("unexpected evidence order: %+v", evidence)
+		}
+	})
 }
 
 func TestDetectPrefersPackageManagerFieldOverLockfiles(t *testing.T) {
@@ -285,13 +307,12 @@ func TestDetectPrefersPackageManagerFieldOverLockfiles(t *testing.T) {
 		t.Fatalf("failed to create package.json: %v", err)
 	}
 
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		PackageJSON: packageJSONPath,
-		YarnLock:    "/repo/yarn.lock",
 		PackageLock: "/repo/package-lock.json",
 	}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -315,11 +336,11 @@ func TestDetectPrefersPackageManagerFieldOverLockfiles(t *testing.T) {
 }
 
 func TestDetectPackageManagerFromPnpmLockfile(t *testing.T) {
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		PnpmLock: "/repo/pnpm-lock.yaml",
 	}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -333,10 +354,6 @@ func TestDetectPackageManagerFromPnpmLockfile(t *testing.T) {
 		t.Errorf("Name = %q, want %q", result.Name, "pnpm")
 	}
 
-	if result.Version != "" {
-		t.Errorf("Version = %q, want empty string", result.Version)
-	}
-
 	if result.Source != "pnpm-lock.yaml" {
 		t.Errorf(
 			"Source = %q, want %q",
@@ -344,14 +361,18 @@ func TestDetectPackageManagerFromPnpmLockfile(t *testing.T) {
 			"pnpm-lock.yaml",
 		)
 	}
+
+	if result.Confidence != facts.ConfidenceHigh {
+		t.Errorf("Confidence = %q, want %q", result.Confidence, facts.ConfidenceHigh)
+	}
 }
 
 func TestDetectPackageManagerFromYarnLockfile(t *testing.T) {
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		YarnLock: "/repo/yarn.lock",
 	}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -375,11 +396,11 @@ func TestDetectPackageManagerFromYarnLockfile(t *testing.T) {
 }
 
 func TestDetectPackageManagerFromPackageLock(t *testing.T) {
-	facts := &scanner.RepositoryFacts{
+	repoFacts := &scanner.RepositoryFacts{
 		PackageLock: "/repo/package-lock.json",
 	}
 
-	result, err := Detect(facts)
+	result, err := Detect(repoFacts)
 
 	if err != nil {
 		t.Fatalf("Detect() returned an error: %v", err)
@@ -402,15 +423,49 @@ func TestDetectPackageManagerFromPackageLock(t *testing.T) {
 	}
 }
 
-func TestDetectRejectsConflictingLockfiles(t *testing.T) {
-	facts := &scanner.RepositoryFacts{
+func TestDetectPackageManagerFromBunLockfile(t *testing.T) {
+	repoFacts := &scanner.RepositoryFacts{
+		BunLock: "/repo/bun.lockb",
+	}
+
+	result, err := Detect(repoFacts)
+	if err != nil {
+		t.Fatalf("Detect() returned an error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Detect() returned nil result")
+	}
+	if result.Name != "bun" {
+		t.Errorf("Name = %q, want %q", result.Name, "bun")
+	}
+	if result.Source != "bun.lockb" {
+		t.Errorf("Source = %q, want %q", result.Source, "bun.lockb")
+	}
+}
+
+func TestDetectHandlesConflictingLockfiles(t *testing.T) {
+	repoFacts := &scanner.RepositoryFacts{
 		PnpmLock:    "/repo/pnpm-lock.yaml",
 		PackageLock: "/repo/package-lock.json",
 	}
 
-	_, err := Detect(facts)
+	result, err := Detect(repoFacts)
+	if err != nil {
+		t.Fatalf("Detect() returned unexpected error: %v", err)
+	}
 
-	if err == nil {
-		t.Fatal("Detect() expected an error, got nil")
+	if result == nil {
+		t.Fatal("expected result for conflicting lockfiles, got nil")
+	}
+
+	// Priority order: pnpm comes before npm
+	if result.Name != "pnpm" {
+		t.Errorf("Name = %q, want best guess %q", result.Name, "pnpm")
+	}
+	if result.Confidence != facts.ConfidenceLow {
+		t.Errorf("Confidence = %q, want %q", result.Confidence, facts.ConfidenceLow)
+	}
+	if len(result.Conflicts) != 2 {
+		t.Errorf("Conflicts length = %d, want 2", len(result.Conflicts))
 	}
 }

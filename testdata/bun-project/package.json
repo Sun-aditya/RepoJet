@@ -1,0 +1,9 @@
+{
+  "name": "bun-app",
+  "version": "1.0.0",
+  "packageManager": "bun@1.1.0",
+  "scripts": {
+    "dev": "bun run dev.ts",
+    "build": "bun build"
+  }
+}
