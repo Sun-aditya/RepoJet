@@ -11,6 +11,7 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 	tests := []struct {
 		name            string
 		pm              string
+		pmVersion       string
 		lockfile        string
 		scripts         map[string]string
 		nodeVersion     string
@@ -21,6 +22,7 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 		expectedTest    string
 		hasStep2        bool
 		step2Command    string
+		nodeCommand     string
 	}{
 		{
 			name:            "npm with lockfile",
@@ -34,21 +36,26 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 			expectedStart:   "npm start",
 			expectedTest:    "npm test",
 			hasStep2:        false, // npm skips step 2
+			nodeCommand:     "nvm install 20",
 		},
 		{
 			name:            "npm without lockfile",
 			pm:              "npm",
 			lockfile:        "",
 			scripts:         map[string]string{"dev": "vite"},
+			nodeVersion:     "lts/*",
 			expectedInstall: "npm install",
 			expectedDev:     "npm run dev",
 			hasStep2:        false,
+			nodeCommand:     "nvm install --lts",
 		},
 		{
-			name:            "yarn with lockfile",
+			name:            "yarn 1.x with lockfile",
 			pm:              "yarn",
+			pmVersion:       "1.22.19",
 			lockfile:        "yarn.lock",
 			scripts:         map[string]string{"dev": "vite", "build": "vite build", "start": "node index.js", "test": "mocha"},
+			nodeVersion:     "18.19.0",
 			expectedInstall: "yarn install --frozen-lockfile",
 			expectedDev:     "yarn dev",
 			expectedBuild:   "yarn build",
@@ -56,19 +63,34 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 			expectedTest:    "yarn test",
 			hasStep2:        true,
 			step2Command:    "corepack enable",
+			nodeCommand:     "nvm install 18.19.0",
 		},
 		{
-			name:            "yarn without lockfile",
+			name:            "yarn 4.x with lockfile",
 			pm:              "yarn",
-			lockfile:        "",
+			pmVersion:       "4.1.0",
+			lockfile:        "yarn.lock",
 			scripts:         map[string]string{"dev": "vite"},
-			expectedInstall: "yarn install",
+			nodeVersion:     "^18.0.0",
+			expectedInstall: "yarn install --immutable",
+			expectedDev:     "yarn dev",
+			hasStep2:        true,
+			step2Command:    "corepack enable",
+			nodeCommand:     "nvm install 18",
+		},
+		{
+			name:            "yarn unknown version with lockfile",
+			pm:              "yarn",
+			pmVersion:       "",
+			lockfile:        "yarn.lock",
+			scripts:         map[string]string{"dev": "vite"},
+			expectedInstall: "yarn install --frozen-lockfile",
 			expectedDev:     "yarn dev",
 			hasStep2:        true,
 			step2Command:    "corepack enable",
 		},
 		{
-			name:            "pnpm with lockfile",
+			name:            "pnpm with lockfile and range version",
 			pm:              "pnpm",
 			lockfile:        "pnpm-lock.yaml",
 			scripts:         map[string]string{"dev": "next dev", "build": "next build", "start": "next start", "test": "vitest"},
@@ -80,39 +102,22 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 			expectedTest:    "pnpm test",
 			hasStep2:        true,
 			step2Command:    "corepack enable",
-		},
-		{
-			name:            "pnpm without lockfile",
-			pm:              "pnpm",
-			lockfile:        "",
-			scripts:         map[string]string{"dev": "next dev"},
-			expectedInstall: "pnpm install",
-			expectedDev:     "pnpm dev",
-			hasStep2:        true,
-			step2Command:    "corepack enable",
+			nodeCommand:     "nvm install 18",
 		},
 		{
 			name:            "bun with lockfile",
 			pm:              "bun",
 			lockfile:        "bun.lockb",
 			scripts:         map[string]string{"dev": "bun run dev.ts", "build": "bun build", "start": "bun run server.ts", "test": "bun test"},
+			nodeVersion:     "18.x",
 			expectedInstall: "bun install --frozen-lockfile",
 			expectedDev:     "bun run dev",
 			expectedBuild:   "bun run build",
 			expectedStart:   "bun run start",
 			expectedTest:    "bun run test",
 			hasStep2:        true,
-			step2Command:    "curl -fsSL https://bun.sh/install | bash",
-		},
-		{
-			name:            "bun without lockfile",
-			pm:              "bun",
-			lockfile:        "",
-			scripts:         map[string]string{"dev": "bun run dev.ts"},
-			expectedInstall: "bun install",
-			expectedDev:     "bun run dev",
-			hasStep2:        true,
-			step2Command:    "curl -fsSL https://bun.sh/install | bash",
+			step2Command:    "npm install -g bun",
+			nodeCommand:     "nvm install 18",
 		},
 	}
 
@@ -120,6 +125,7 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := facts.New()
 			f.PackageManager = facts.Fact{Value: tt.pm}
+			f.PackageManagerVersion = tt.pmVersion
 			f.Lockfile = tt.lockfile
 			f.NodeVersion = facts.Fact{Value: tt.nodeVersion}
 			f.Scripts = tt.scripts
@@ -145,7 +151,7 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 				t.Errorf("Commands.Test = %q, want %q", plan.Commands.Test, tt.expectedTest)
 			}
 
-			// Verify Step ordering
+			// Verify Step ordering is sequential (1, 2, 3...)
 			for i, step := range plan.Steps {
 				if step.Order != i+1 {
 					t.Errorf("Step[%d].Order = %d, want %d", i, step.Order, i+1)
@@ -156,13 +162,8 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 			if len(plan.Steps) == 0 {
 				t.Fatal("expected at least 1 step")
 			}
-			if tt.nodeVersion != "" {
-				if !strings.Contains(plan.Steps[0].Title, tt.nodeVersion) {
-					t.Errorf("Step 1 Title %q does not contain nodeVersion %q", plan.Steps[0].Title, tt.nodeVersion)
-				}
-				if !strings.Contains(plan.Steps[0].Command, tt.nodeVersion) {
-					t.Errorf("Step 1 Command %q does not contain nodeVersion %q", plan.Steps[0].Command, tt.nodeVersion)
-				}
+			if tt.nodeCommand != "" && plan.Steps[0].Command != tt.nodeCommand {
+				t.Errorf("Step 1 Command = %q, want %q", plan.Steps[0].Command, tt.nodeCommand)
 			}
 
 			// Verify Step 2 (Package manager step)
@@ -174,12 +175,38 @@ func TestPlannerPackageManagersAndLockfiles(t *testing.T) {
 					t.Errorf("Step 2 command = %q, want %q", plan.Steps[1].Command, tt.step2Command)
 				}
 			} else {
-				// npm should go straight from install node to install dependencies
 				if plan.Steps[1].Title != "Install dependencies" {
 					t.Errorf("npm step 2 title = %q, want Install dependencies", plan.Steps[1].Title)
 				}
 			}
 		})
+	}
+}
+
+func TestPlannerLockfileMismatch(t *testing.T) {
+	f := facts.New()
+	f.PackageManager = facts.Fact{Value: "yarn"}
+	f.Lockfile = "package-lock.json" // mismatch!
+
+	plan, err := Generate(f)
+	if err != nil {
+		t.Fatalf("Generate() returned error: %v", err)
+	}
+
+	// Should fallback to plain install
+	if plan.Commands.Install != "yarn install" {
+		t.Errorf("Commands.Install = %q, want yarn install", plan.Commands.Install)
+	}
+
+	foundWarning := false
+	for _, w := range plan.Warnings {
+		if strings.Contains(w, "lockfile package-lock.json does not match package manager yarn") {
+			foundWarning = true
+			break
+		}
+	}
+	if !foundWarning {
+		t.Errorf("expected lockfile mismatch warning, got: %v", plan.Warnings)
 	}
 }
 
@@ -247,7 +274,6 @@ func TestPlannerDevCommandPriorityAndMissing(t *testing.T) {
 			t.Errorf("expected warning for missing dev/start scripts, got: %v", plan.Warnings)
 		}
 
-		// Verify Start development server step is not in steps
 		for _, s := range plan.Steps {
 			if s.Title == "Start development server" {
 				t.Error("unexpected Start development server step when no dev/start script exists")

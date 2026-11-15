@@ -15,14 +15,15 @@ type Fact struct {
 }
 
 type Facts struct {
-	Runtime        Fact              `json:"runtime"`
-	Framework      Fact              `json:"framework"`
-	PackageManager Fact              `json:"package_manager"`
-	NodeVersion    Fact              `json:"node_version"`
-	Lockfile       string            `json:"lockfile,omitempty"`
-	Scripts        map[string]string `json:"scripts"`
-	EnvFiles       []string          `json:"env_files"`
-	Warnings       []string          `json:"warnings"`
+	Runtime               Fact              `json:"runtime"`
+	Framework             Fact              `json:"framework"`
+	PackageManager        Fact              `json:"package_manager"`
+	PackageManagerVersion string            `json:"package_manager_version,omitempty"`
+	NodeVersion           Fact              `json:"node_version"`
+	Lockfile              string            `json:"lockfile,omitempty"`
+	Scripts               map[string]string `json:"scripts"`
+	EnvFiles              []string          `json:"env_files"`
+	Warnings              []string          `json:"warnings"`
 }
 
 func New() *Facts {

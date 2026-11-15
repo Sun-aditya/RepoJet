@@ -142,6 +142,7 @@ func (a *NodeAnalyzer) detectPackageManagerAndLockfile(
 			Evidence:   pmResult.Source,
 			Confidence: pmResult.Confidence,
 		}
+		result.PackageManagerVersion = pmResult.Version
 
 		if pmResult.Source == "package.json" {
 			// packageManager field detected
